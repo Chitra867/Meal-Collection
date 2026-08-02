@@ -44,7 +44,9 @@ function FilterButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected: active }}
+      accessibilityState={{
+        selected: active,
+      }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.filterButton,
@@ -57,7 +59,8 @@ function FilterButton({
         numberOfLines={1}
         style={[
           styles.filterButtonText,
-          active && styles.activeFilterButtonText,
+          active &&
+            styles.activeFilterButtonText,
         ]}
       >
         {label}
@@ -70,8 +73,10 @@ export default function ListScreen({
   title = "My Collection",
   subtitle,
   items = [],
+
   emptyTitle = "No recipes found",
-  emptyMessage = "Try another search or change the selected filter.",
+  emptyMessage =
+    "Try another search or change the selected filter.",
 
   onAdd = null,
   onEdit = () => {},
@@ -84,11 +89,20 @@ export default function ListScreen({
 }) {
   const { width } = useWindowDimensions();
 
-  const [searchText, setSearchText] = useState("");
-  const [showFavouritesOnly, setShowFavouritesOnly] =
-    useState(false);
+  const [searchText, setSearchText] =
+    useState("");
 
-  const numberOfColumns = getColumnCount(width);
+  const [
+    showFavouritesOnly,
+    setShowFavouritesOnly,
+  ] = useState(false);
+
+  const safeItems = Array.isArray(items)
+    ? items
+    : [];
+
+  const numberOfColumns =
+    getColumnCount(width);
 
   const horizontalPadding = spacing.lg;
   const columnGap = spacing.md;
@@ -98,22 +112,32 @@ export default function ListScreen({
     horizontalPadding * 2 -
     columnGap * (numberOfColumns - 1);
 
-  const cardWidth =
-    availableWidth / numberOfColumns;
+  const cardWidth = Math.max(
+    0,
+    availableWidth / numberOfColumns
+  );
 
   const favouriteCount = useMemo(
     () =>
-      items.filter((item) => item.favourite)
-        .length,
-    [items]
+      safeItems.filter(
+        (item) =>
+          Boolean(item?.favourite)
+      ).length,
+    [safeItems]
   );
 
   const filteredItems = useMemo(() => {
-    const search =
-      searchText.trim().toLowerCase();
+    const normalizedSearch = searchText
+      .trim()
+      .toLowerCase();
 
-    return items.filter((item) => {
+    return safeItems.filter((item) => {
+      if (!item) {
+        return false;
+      }
+
       const matchesFavourite =
+        !showFavouriteFilter ||
         !showFavouritesOnly ||
         Boolean(item.favourite);
 
@@ -121,8 +145,17 @@ export default function ListScreen({
         item.title,
         item.subtitle,
         item.notes,
+
         ...(Array.isArray(item.tags)
           ? item.tags
+          : []),
+
+        ...(Array.isArray(item.ingredients)
+          ? item.ingredients
+          : []),
+
+        ...(Array.isArray(item.steps)
+          ? item.steps
           : []),
       ]
         .filter(Boolean)
@@ -130,8 +163,10 @@ export default function ListScreen({
         .toLowerCase();
 
       const matchesSearch =
-        !search ||
-        searchableText.includes(search);
+        !normalizedSearch ||
+        searchableText.includes(
+          normalizedSearch
+        );
 
       return (
         matchesFavourite &&
@@ -139,10 +174,20 @@ export default function ListScreen({
       );
     });
   }, [
-    items,
+    safeItems,
     searchText,
     showFavouritesOnly,
+    showFavouriteFilter,
   ]);
+
+  const displaySubtitle =
+    subtitle ??
+    `${safeItems.length} recipes · ${favouriteCount} favourites`;
+
+  const hasActiveFilters =
+    searchText.trim().length > 0 ||
+    (showFavouriteFilter &&
+      showFavouritesOnly);
 
   const handleDeleteRequest = (recipe) => {
     if (!recipe?.id) {
@@ -172,14 +217,14 @@ export default function ListScreen({
     setShowFavouritesOnly(false);
   };
 
-  const displaySubtitle =
-    subtitle ??
-    `${items.length} recipes · ${favouriteCount} favourites`;
-
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={["top", "left", "right"]}
+      edges={[
+        "top",
+        "left",
+        "right",
+      ]}
     >
       <View style={styles.header}>
         <View style={styles.headerText}>
@@ -208,7 +253,9 @@ export default function ListScreen({
               pressed && styles.pressed,
             ]}
           >
-            <Text style={styles.addButtonText}>
+            <Text
+              style={styles.addButtonText}
+            >
               + Add
             </Text>
           </Pressable>
@@ -222,35 +269,45 @@ export default function ListScreen({
             <TextInput
               value={searchText}
               onChangeText={setSearchText}
-              placeholder="Search recipes..."
+              placeholder="Search recipes, ingredients..."
               placeholderTextColor={
                 colors.textFaint
               }
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
+              clearButtonMode="while-editing"
               style={styles.searchInput}
             />
           ) : null}
 
           {showFavouriteFilter ? (
             <View
-              style={styles.filterContainer}
+              style={
+                styles.filterContainer
+              }
             >
               <FilterButton
-                label={`All (${items.length})`}
-                active={!showFavouritesOnly}
-                onPress={() =>
-                  setShowFavouritesOnly(false)
+                label={`All (${safeItems.length})`}
+                active={
+                  !showFavouritesOnly
                 }
-                style={styles.firstFilter}
+                onPress={() =>
+                  setShowFavouritesOnly(
+                    false
+                  )
+                }
               />
 
               <FilterButton
                 label={`Favourites (${favouriteCount})`}
-                active={showFavouritesOnly}
+                active={
+                  showFavouritesOnly
+                }
                 onPress={() =>
-                  setShowFavouritesOnly(true)
+                  setShowFavouritesOnly(
+                    true
+                  )
                 }
               />
             </View>
@@ -262,11 +319,16 @@ export default function ListScreen({
         key={`columns-${numberOfColumns}`}
         data={filteredItems}
         numColumns={numberOfColumns}
-        keyExtractor={(item) =>
-          String(item.id)
+        keyExtractor={(item, index) =>
+          item?.id
+            ? String(item.id)
+            : `recipe-${index}`
         }
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={[
           styles.listContent,
           filteredItems.length === 0 &&
@@ -274,14 +336,18 @@ export default function ListScreen({
         ]}
         columnWrapperStyle={
           numberOfColumns > 1
-            ? styles.columnWrapper
+            ? {
+                gap: columnGap,
+              }
             : undefined
         }
         renderItem={({ item }) => (
           <RecipeCard
             item={item}
             width={cardWidth}
-            onOpenDetails={onOpenDetails}
+            onOpenDetails={
+              onOpenDetails
+            }
             onEdit={onEdit}
             onDelete={
               handleDeleteRequest
@@ -292,22 +358,32 @@ export default function ListScreen({
           />
         )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>
+          <View
+            style={
+              styles.emptyContainer
+            }
+          >
+            <Text
+              style={styles.emptyIcon}
+            >
               🔎
             </Text>
 
-            <Text style={styles.emptyTitle}>
+            <Text
+              style={styles.emptyTitle}
+            >
               {emptyTitle}
             </Text>
 
-            <Text style={styles.emptyMessage}>
+            <Text
+              style={styles.emptyMessage}
+            >
               {emptyMessage}
             </Text>
 
-            {(searchText ||
-              showFavouritesOnly) && (
+            {hasActiveFilters ? (
               <Pressable
+                accessibilityRole="button"
                 onPress={clearFilters}
                 style={({ pressed }) => [
                   styles.clearButton,
@@ -323,7 +399,26 @@ export default function ListScreen({
                   Clear filters
                 </Text>
               </Pressable>
-            )}
+            ) : typeof onAdd ===
+              "function" ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onAdd}
+                style={({ pressed }) => [
+                  styles.clearButton,
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <Text
+                  style={
+                    styles.clearButtonText
+                  }
+                >
+                  Add your first recipe
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         }
       />
@@ -398,11 +493,9 @@ const styles = StyleSheet.create({
 
   filterContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
     marginTop: spacing.sm,
-  },
-
-  firstFilter: {
-    marginRight: spacing.sm,
   },
 
   filterButton: {
@@ -441,10 +534,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  columnWrapper: {
-    justifyContent: "space-between",
-  },
-
   emptyContainer: {
     alignItems: "center",
     padding: spacing.xxl,
@@ -466,6 +555,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     color: colors.textMuted,
     fontSize: fontSize.sm,
+    lineHeight: lineHeight(
+      fontSize.sm
+    ),
     textAlign: "center",
   },
 
@@ -486,6 +578,10 @@ const styles = StyleSheet.create({
 
   pressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.97 }],
+    transform: [
+      {
+        scale: 0.97,
+      },
+    ],
   },
 });

@@ -23,13 +23,12 @@ import {
 
 export default function RecipeDetailsScreen({
   recipe,
-  onBack,
-  onEdit,
-  onDelete,
-  onToggleFavourite,
+  onBack = () => {},
+  onEdit = () => {},
+  onDelete = () => {},
+  onToggleFavourite = () => {},
 }) {
-  const [imageFailed, setImageFailed] =
-    useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     setImageFailed(false);
@@ -65,9 +64,16 @@ export default function RecipeDetailsScreen({
             Recipe not found
           </Text>
 
+          <Text style={styles.notFoundMessage}>
+            This recipe may have been deleted.
+          </Text>
+
           <Pressable
             onPress={onBack}
-            style={styles.primaryButton}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && styles.pressed,
+            ]}
           >
             <Text style={styles.primaryButtonText}>
               Go back
@@ -81,6 +87,20 @@ export default function RecipeDetailsScreen({
   const showImage =
     Boolean(recipe.image) && !imageFailed;
 
+  const ingredients = Array.isArray(
+    recipe.ingredients
+  )
+    ? recipe.ingredients
+    : [];
+
+  const steps = Array.isArray(recipe.steps)
+    ? recipe.steps
+    : [];
+
+  const tags = Array.isArray(recipe.tags)
+    ? recipe.tags
+    : [];
+
   return (
     <SafeAreaView
       style={styles.safeArea}
@@ -88,6 +108,8 @@ export default function RecipeDetailsScreen({
     >
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
           onPress={onBack}
           style={({ pressed }) => [
             styles.headerButton,
@@ -107,6 +129,8 @@ export default function RecipeDetailsScreen({
         </Text>
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${recipe.title}`}
           onPress={onEdit}
           style={({ pressed }) => [
             styles.headerButton,
@@ -121,9 +145,7 @@ export default function RecipeDetailsScreen({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={
-          styles.scrollContent
-        }
+        contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.imageContainer}>
           {showImage ? (
@@ -131,9 +153,8 @@ export default function RecipeDetailsScreen({
               source={{ uri: recipe.image }}
               style={styles.heroImage}
               resizeMode="cover"
-              onError={() =>
-                setImageFailed(true)
-              }
+              accessibilityLabel={recipe.title}
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <View style={styles.imagePlaceholder}>
@@ -148,6 +169,12 @@ export default function RecipeDetailsScreen({
           )}
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              recipe.favourite
+                ? `Remove ${recipe.title} from favourites`
+                : `Add ${recipe.title} to favourites`
+            }
             onPress={onToggleFavourite}
             style={({ pressed }) => [
               styles.favouriteButton,
@@ -170,13 +197,18 @@ export default function RecipeDetailsScreen({
           </Text>
 
           <View style={styles.infoRow}>
-            <View style={styles.infoBox}>
+            <View
+              style={[
+                styles.infoBox,
+                styles.firstInfoBox,
+              ]}
+            >
               <Text style={styles.infoLabel}>
                 Cooking time
               </Text>
 
               <Text style={styles.infoValue}>
-                {recipe.minutes} minutes
+                {recipe.minutes || 0} minutes
               </Text>
             </View>
 
@@ -193,16 +225,16 @@ export default function RecipeDetailsScreen({
             </View>
           </View>
 
-          {recipe.tags?.length > 0 ? (
+          {tags.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Tags
               </Text>
 
               <View style={styles.tagsContainer}>
-                {recipe.tags.map((tag) => (
+                {tags.map((tag, index) => (
                   <View
-                    key={`${recipe.id}-${tag}`}
+                    key={`${recipe.id}-tag-${index}`}
                     style={styles.tag}
                   >
                     <Text style={styles.tagText}>
@@ -216,16 +248,81 @@ export default function RecipeDetailsScreen({
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
+              Ingredients
+            </Text>
+
+            {ingredients.length > 0 ? (
+              ingredients.map(
+                (ingredient, index) => (
+                  <View
+                    key={`${recipe.id}-ingredient-${index}`}
+                    style={styles.ingredientRow}
+                  >
+                    <View
+                      style={
+                        styles.ingredientBullet
+                      }
+                    />
+
+                    <Text
+                      style={styles.ingredientText}
+                    >
+                      {ingredient}
+                    </Text>
+                  </View>
+                )
+              )
+            ) : (
+              <Text style={styles.emptySectionText}>
+                No ingredients have been added.
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Preparation
+            </Text>
+
+            {steps.length > 0 ? (
+              steps.map((step, index) => (
+                <View
+                  key={`${recipe.id}-step-${index}`}
+                  style={styles.stepRow}
+                >
+                  <View style={styles.stepNumber}>
+                    <Text
+                      style={styles.stepNumberText}
+                    >
+                      {index + 1}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.stepText}>
+                    {step}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptySectionText}>
+                No preparation steps have been added.
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
               Notes
             </Text>
 
             <Text style={styles.notes}>
               {recipe.notes ||
-                "No notes have been added."}
+                "No additional notes have been added."}
             </Text>
           </View>
 
           <Pressable
+            accessibilityRole="button"
             onPress={onToggleFavourite}
             style={({ pressed }) => [
               styles.favouriteAction,
@@ -243,6 +340,7 @@ export default function RecipeDetailsScreen({
 
           <View style={styles.actions}>
             <Pressable
+              accessibilityRole="button"
               onPress={onEdit}
               style={({ pressed }) => [
                 styles.actionButton,
@@ -256,6 +354,7 @@ export default function RecipeDetailsScreen({
             </Pressable>
 
             <Pressable
+              accessibilityRole="button"
               onPress={handleDelete}
               style={({ pressed }) => [
                 styles.actionButton,
@@ -401,6 +500,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
 
+  firstInfoBox: {
+    marginRight: spacing.sm,
+  },
+
   infoLabel: {
     color: colors.textMuted,
     fontSize: fontSize.xs,
@@ -443,6 +546,64 @@ const styles = StyleSheet.create({
     color: colors.tagText,
     fontSize: fontSize.sm,
     fontWeight: "700",
+  },
+
+  ingredientRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: spacing.md,
+  },
+
+  ingredientBullet: {
+    width: 8,
+    height: 8,
+    marginTop: 7,
+    marginRight: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+  },
+
+  ingredientText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: fontSize.md,
+    lineHeight: lineHeight(fontSize.md),
+  },
+
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: spacing.md,
+  },
+
+  stepNumber: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+  },
+
+  stepNumberText: {
+    color: colors.surface,
+    fontSize: fontSize.sm,
+    fontWeight: "900",
+  },
+
+  stepText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: fontSize.md,
+    lineHeight: lineHeight(fontSize.md),
+  },
+
+  emptySectionText: {
+    marginTop: spacing.sm,
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    fontStyle: "italic",
   },
 
   notes: {
@@ -510,6 +671,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: fontSize.xl,
     fontWeight: "800",
+  },
+
+  notFoundMessage: {
+    marginTop: spacing.sm,
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    textAlign: "center",
   },
 
   primaryButton: {
