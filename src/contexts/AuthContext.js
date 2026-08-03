@@ -9,39 +9,49 @@ import {
 
 import * as SecureStore from "expo-secure-store";
 
-const AuthContext = createContext(null);
+import {
+  authenticateRegisteredUser,
+  registerUserAccount,
+} from "../storage/userStorage";
+
+const AuthContext =
+  createContext(undefined);
 
 const SESSION_KEY =
   "meal_collection_authenticated_user";
 
-/*
-  Temporary development accounts.
-
-  Replace this local validation with a backend API
-  before publishing the application.
-*/
-const DEMO_ACCOUNTS = [
-  {
-    id: "user-1",
-    name: "Recipe User",
-    email: "user@mealcollection.app",
-    password: "User@123",
-    role: "user",
-  },
-  {
-    id: "admin-1",
-    name: "Meal Collection Admin",
-    email: "admin@mealcollection.app",
-    password: "Admin@123",
-    role: "admin",
-  },
-];
+const ADMIN_ACCOUNT = {
+  id: "admin-1",
+  fullName:
+    "Meal Collection Admin",
+  name: "Meal Collection Admin",
+  email:
+    "admin@mealcollection.app",
+  username: "admin",
+  password: "Admin@123",
+  role: "admin",
+};
 
 function createSessionUser(account) {
   return {
     id: account.id,
-    name: account.name,
-    email: account.email,
+
+    fullName:
+      account.fullName ||
+      account.name ||
+      "",
+
+    name:
+      account.fullName ||
+      account.name ||
+      "",
+
+    email:
+      account.email || "",
+
+    username:
+      account.username || "",
+
     role: account.role,
   };
 }
@@ -49,7 +59,8 @@ function createSessionUser(account) {
 export function AuthProvider({
   children,
 }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] =
+    useState(null);
 
   const [
     isAuthLoading,
@@ -61,23 +72,30 @@ export function AuthProvider({
 
     async function restoreSession() {
       try {
-        const storedUser =
+        const storedSession =
           await SecureStore.getItemAsync(
             SESSION_KEY
           );
 
-        if (!storedUser || !mounted) {
+        if (
+          !mounted ||
+          !storedSession
+        ) {
           return;
         }
 
-        const parsedUser =
-          JSON.parse(storedUser);
+        const parsedSession =
+          JSON.parse(storedSession);
 
         if (
-          parsedUser?.id &&
-          parsedUser?.role
+          parsedSession?.id &&
+          parsedSession?.role
         ) {
-          setUser(parsedUser);
+          setUser(parsedSession);
+        } else {
+          await SecureStore.deleteItemAsync(
+            SESSION_KEY
+          );
         }
       } catch (error) {
         console.error(
@@ -85,9 +103,18 @@ export function AuthProvider({
           error
         );
 
-        await SecureStore.deleteItemAsync(
-          SESSION_KEY
-        );
+        try {
+          await SecureStore.deleteItemAsync(
+            SESSION_KEY
+          );
+        } catch (
+          deleteError
+        ) {
+          console.error(
+            "Failed to clear invalid session:",
+            deleteError
+          );
+        }
       } finally {
         if (mounted) {
           setIsAuthLoading(false);
@@ -102,73 +129,104 @@ export function AuthProvider({
     };
   }, []);
 
-  const signIn = useCallback(
-    async ({
-      email,
-      password,
-      role,
-    }) => {
-      const normalizedEmail = String(
-        email || ""
-      )
-        .trim()
-        .toLowerCase();
+  const saveSession =
+    useCallback(
+      async (account) => {
+        const sessionUser =
+          createSessionUser(account);
 
-      const normalizedPassword =
-        String(password || "");
-
-      if (!normalizedEmail) {
-        return {
-          success: false,
-          message:
-            "Email address is required.",
-        };
-      }
-
-      if (!normalizedPassword) {
-        return {
-          success: false,
-          message: "Password is required.",
-        };
-      }
-
-      const account =
-        DEMO_ACCOUNTS.find(
-          (item) =>
-            item.email.toLowerCase() ===
-              normalizedEmail &&
-            item.password ===
-              normalizedPassword
-        );
-
-      if (!account) {
-        return {
-          success: false,
-          message:
-            "The email or password is incorrect.",
-        };
-      }
-
-      if (account.role !== role) {
-        return {
-          success: false,
-          message:
-            role === "admin"
-              ? "This account is not an administrator account."
-              : "This account is not a user account.",
-        };
-      }
-
-      const sessionUser =
-        createSessionUser(account);
-
-      try {
         await SecureStore.setItemAsync(
           SESSION_KEY,
-          JSON.stringify(sessionUser)
+          JSON.stringify(
+            sessionUser
+          )
         );
 
         setUser(sessionUser);
+
+        return sessionUser;
+      },
+      []
+    );
+
+  const signIn = useCallback(
+    async ({
+      identifier,
+      password,
+      role = "user",
+    }) => {
+      const cleanIdentifier =
+        String(identifier || "")
+          .trim()
+          .toLowerCase();
+
+      const cleanPassword =
+        String(password || "");
+
+      if (!cleanIdentifier) {
+        return {
+          success: false,
+          message:
+            "Username is required.",
+        };
+      }
+
+      if (!cleanPassword) {
+        return {
+          success: false,
+          message:
+            "Password is required.",
+        };
+      }
+
+      try {
+        if (role === "admin") {
+          const validIdentifier =
+            cleanIdentifier ===
+              ADMIN_ACCOUNT.username ||
+            cleanIdentifier ===
+              ADMIN_ACCOUNT.email;
+
+          const validPassword =
+            cleanPassword ===
+            ADMIN_ACCOUNT.password;
+
+          if (
+            !validIdentifier ||
+            !validPassword
+          ) {
+            return {
+              success: false,
+              message:
+                "The admin username or password is incorrect.",
+            };
+          }
+
+          const sessionUser =
+            await saveSession(
+              ADMIN_ACCOUNT
+            );
+
+          return {
+            success: true,
+            user: sessionUser,
+          };
+        }
+
+        const result =
+          await authenticateRegisteredUser(
+            cleanIdentifier,
+            cleanPassword
+          );
+
+        if (!result.success) {
+          return result;
+        }
+
+        const sessionUser =
+          await saveSession(
+            result.user
+          );
 
         return {
           success: true,
@@ -187,11 +245,21 @@ export function AuthProvider({
         };
       }
     },
-    []
+    [saveSession]
   );
 
-  const signOut = useCallback(
-    async () => {
+  const register =
+    useCallback(
+      async (formData) => {
+        return registerUserAccount(
+          formData
+        );
+      },
+      []
+    );
+
+  const signOut =
+    useCallback(async () => {
       try {
         await SecureStore.deleteItemAsync(
           SESSION_KEY
@@ -204,22 +272,23 @@ export function AuthProvider({
       } finally {
         setUser(null);
       }
-    },
-    []
-  );
+    }, []);
 
   const value = useMemo(
     () => ({
       user,
-      isAuthenticated: Boolean(user),
+      isAuthenticated:
+        Boolean(user),
       isAuthLoading,
       signIn,
+      register,
       signOut,
     }),
     [
       user,
       isAuthLoading,
       signIn,
+      register,
       signOut,
     ]
   );

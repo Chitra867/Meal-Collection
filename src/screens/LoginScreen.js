@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -16,7 +17,10 @@ import {
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
 
 import {
   fixed,
@@ -34,7 +38,10 @@ import {
   useAuth,
 } from "../contexts/AuthContext";
 
-export default function LoginScreen() {
+export default function LoginScreen({
+  navigation,
+  route,
+}) {
   const {
     colors,
     isDark,
@@ -44,15 +51,21 @@ export default function LoginScreen() {
   const { signIn } = useAuth();
 
   const styles = useMemo(
-    () => createStyles(colors, isDark),
+    () =>
+      createStyles(
+        colors,
+        isDark
+      ),
     [colors, isDark]
   );
 
   const [role, setRole] =
     useState("user");
 
-  const [email, setEmail] =
-    useState("");
+  const [
+    identifier,
+    setIdentifier,
+  ] = useState("");
 
   const [password, setPassword] =
     useState("");
@@ -65,49 +78,74 @@ export default function LoginScreen() {
   const [error, setError] =
     useState("");
 
-  const [isSubmitting, setIsSubmitting] =
-    useState(false);
+  const [
+    isSubmitting,
+    setIsSubmitting,
+  ] = useState(false);
 
-  const selectRole = (selectedRole) => {
-    setRole(selectedRole);
-    setError("");
+  useEffect(() => {
+    const registeredUsername =
+      route.params
+        ?.registeredUsername;
 
-    if (selectedRole === "admin") {
-      setEmail(
-        "admin@mealcollection.app"
+    if (registeredUsername) {
+      setRole("user");
+
+      setIdentifier(
+        registeredUsername
       );
 
-      setPassword("Admin@123");
-    } else {
-      setEmail(
-        "user@mealcollection.app"
-      );
-
-      setPassword("User@123");
+      setPassword("");
+      setError("");
     }
-  };
+  }, [
+    route.params
+      ?.registeredUsername,
+  ]);
 
-  const handleLogin = async () => {
-    if (isSubmitting) {
-      return;
-    }
-
-    setError("");
-    setIsSubmitting(true);
-
-    try {
-      const result = await signIn({
-        email,
-        password,
-        role,
-      });
-
-      if (!result.success) {
-        setError(result.message);
+  const handleLogin =
+    async () => {
+      if (isSubmitting) {
+        return;
       }
-    } finally {
-      setIsSubmitting(false);
-    }
+
+      setError("");
+      setIsSubmitting(true);
+
+      try {
+        const result =
+          await signIn({
+            identifier,
+            password,
+            role,
+          });
+
+        if (!result.success) {
+          setError(
+            result.message
+          );
+        }
+      } catch (loginError) {
+        console.error(
+          "Login failed:",
+          loginError
+        );
+
+        setError(
+          "The account could not be signed in."
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+  const selectRole = (
+    selectedRole
+  ) => {
+    setRole(selectedRole);
+    setIdentifier("");
+    setPassword("");
+    setError("");
   };
 
   return (
@@ -124,7 +162,9 @@ export default function LoginScreen() {
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={
+            false
+          }
           contentContainerStyle={
             styles.content
           }
@@ -133,16 +173,11 @@ export default function LoginScreen() {
             <View />
 
             <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                isDark
-                  ? "Use light mode"
-                  : "Use dark mode"
-              }
               onPress={toggleTheme}
               style={({ pressed }) => [
                 styles.themeButton,
-                pressed && styles.pressed,
+                pressed &&
+                  styles.pressed,
               ]}
             >
               <Ionicons
@@ -157,8 +192,14 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
+          <View
+            style={styles.brand}
+          >
+            <View
+              style={
+                styles.logoContainer
+              }
+            >
               <Ionicons
                 name="restaurant"
                 size={34}
@@ -166,41 +207,55 @@ export default function LoginScreen() {
               />
             </View>
 
-            <Text style={styles.appName}>
+            <Text
+              style={styles.appName}
+            >
               Meal Collection
             </Text>
 
-            <Text style={styles.appSubtitle}>
-              Save, manage and discover your
-              favourite recipes
+            <Text
+              style={
+                styles.appDescription
+              }
+            >
+              Sign in to manage your recipes and favourites
             </Text>
           </View>
 
-          <View style={styles.loginCard}>
-            <Text style={styles.title}>
-              Welcome back
+          <View
+            style={styles.loginCard}
+          >
+            <Text
+              style={styles.title}
+            >
+              Welcome Back
             </Text>
 
-            <Text style={styles.subtitle}>
-              Select your account type and
-              enter your credentials.
+            <Text
+              style={styles.subtitle}
+            >
+              Enter your username and password
             </Text>
 
-            <View style={styles.roleSelector}>
+            <View
+              style={
+                styles.roleSelector
+              }
+            >
               <Pressable
                 onPress={() =>
                   selectRole("user")
                 }
-                style={({ pressed }) => [
+                style={[
                   styles.roleButton,
+
                   role === "user" &&
                     styles.activeRoleButton,
-                  pressed && styles.pressed,
                 ]}
               >
                 <Ionicons
                   name="person-outline"
-                  size={19}
+                  size={18}
                   color={
                     role === "user"
                       ? "#ffffff"
@@ -210,9 +265,10 @@ export default function LoginScreen() {
 
                 <Text
                   style={[
-                    styles.roleButtonText,
+                    styles.roleText,
+
                     role === "user" &&
-                      styles.activeRoleButtonText,
+                      styles.activeRoleText,
                   ]}
                 >
                   User
@@ -223,16 +279,16 @@ export default function LoginScreen() {
                 onPress={() =>
                   selectRole("admin")
                 }
-                style={({ pressed }) => [
+                style={[
                   styles.roleButton,
+
                   role === "admin" &&
                     styles.activeRoleButton,
-                  pressed && styles.pressed,
                 ]}
               >
                 <Ionicons
                   name="shield-checkmark-outline"
-                  size={19}
+                  size={18}
                   color={
                     role === "admin"
                       ? "#ffffff"
@@ -242,9 +298,10 @@ export default function LoginScreen() {
 
                 <Text
                   style={[
-                    styles.roleButtonText,
+                    styles.roleText,
+
                     role === "admin" &&
-                      styles.activeRoleButtonText,
+                      styles.activeRoleText,
                   ]}
                 >
                   Admin
@@ -253,38 +310,55 @@ export default function LoginScreen() {
             </View>
 
             {error ? (
-              <View style={styles.errorBox}>
+              <View
+                style={styles.errorBox}
+              >
                 <Ionicons
                   name="alert-circle-outline"
                   size={20}
                   color={colors.danger}
                 />
 
-                <Text style={styles.errorText}>
+                <Text
+                  style={
+                    styles.errorText
+                  }
+                >
                   {error}
                 </Text>
               </View>
             ) : null}
 
             <Text style={styles.label}>
-              Email address
+              Username
             </Text>
 
-            <View style={styles.inputContainer}>
+            <View
+              style={
+                styles.inputContainer
+              }
+            >
               <Ionicons
-                name="mail-outline"
+                name="person-outline"
                 size={20}
-                color={colors.textMuted}
+                color={
+                  colors.textMuted
+                }
               />
 
               <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
+                value={identifier}
+                onChangeText={
+                  setIdentifier
+                }
+                placeholder={
+                  role === "admin"
+                    ? "Enter admin username"
+                    : "Enter your username"
+                }
                 placeholderTextColor={
                   colors.textFaint
                 }
-                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={styles.input}
@@ -295,21 +369,31 @@ export default function LoginScreen() {
               Password
             </Text>
 
-            <View style={styles.inputContainer}>
+            <View
+              style={
+                styles.inputContainer
+              }
+            >
               <Ionicons
                 name="lock-closed-outline"
                 size={20}
-                color={colors.textMuted}
+                color={
+                  colors.textMuted
+                }
               />
 
               <TextInput
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={
+                  setPassword
+                }
                 placeholder="Enter your password"
                 placeholderTextColor={
                   colors.textFaint
                 }
-                secureTextEntry={!showPassword}
+                secureTextEntry={
+                  !showPassword
+                }
                 autoCapitalize="none"
                 autoCorrect={false}
                 onSubmitEditing={
@@ -319,15 +403,10 @@ export default function LoginScreen() {
               />
 
               <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showPassword
-                    ? "Hide password"
-                    : "Show password"
-                }
                 onPress={() =>
                   setShowPassword(
-                    (current) => !current
+                    (current) =>
+                      !current
                   )
                 }
                 hitSlop={10}
@@ -339,7 +418,9 @@ export default function LoginScreen() {
                       : "eye-outline"
                   }
                   size={21}
-                  color={colors.textMuted}
+                  color={
+                    colors.textMuted
+                  }
                 />
               </Pressable>
             </View>
@@ -349,9 +430,12 @@ export default function LoginScreen() {
               onPress={handleLogin}
               style={({ pressed }) => [
                 styles.loginButton,
+
                 isSubmitting &&
                   styles.disabledButton,
-                pressed && styles.pressed,
+
+                pressed &&
+                  styles.pressed,
               ]}
             >
               {isSubmitting ? (
@@ -365,10 +449,7 @@ export default function LoginScreen() {
                       styles.loginButtonText
                     }
                   >
-                    Sign in as{" "}
-                    {role === "admin"
-                      ? "Admin"
-                      : "User"}
+                    Sign In
                   </Text>
 
                   <Ionicons
@@ -380,17 +461,51 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            <View style={styles.demoBox}>
-              <Text style={styles.demoTitle}>
-                Development credentials
-              </Text>
+            {role === "user" ? (
+              <Pressable
+                onPress={() =>
+                  navigation.navigate(
+                    "Register"
+                  )
+                }
+                style={
+                  styles.registerLink
+                }
+              >
+                <Text
+                  style={
+                    styles.registerLinkText
+                  }
+                >
+                  Don&apos;t have an account?{" "}
+                  <Text
+                    style={
+                      styles.registerLinkStrong
+                    }
+                  >
+                    Register
+                  </Text>
+                </Text>
+              </Pressable>
+            ) : (
+              <View
+                style={styles.adminHint}
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color={colors.primary}
+                />
 
-              <Text style={styles.demoText}>
-                {role === "admin"
-                  ? "admin@mealcollection.app  •  Admin@123"
-                  : "user@mealcollection.app  •  User@123"}
-              </Text>
-            </View>
+                <Text
+                  style={
+                    styles.adminHintText
+                  }
+                >
+                  Administrator access only
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -405,7 +520,8 @@ function createStyles(
   return StyleSheet.create({
     safeArea: {
       flex: 1,
-      backgroundColor: colors.bg,
+      backgroundColor:
+        colors.bg,
     },
 
     keyboardView: {
@@ -416,13 +532,16 @@ function createStyles(
       flexGrow: 1,
       justifyContent: "center",
       padding: spacing.lg,
-      paddingBottom: spacing.xxl,
+      paddingBottom:
+        spacing.xxl,
     },
 
     topBar: {
       flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: spacing.md,
+      justifyContent:
+        "space-between",
+      marginBottom:
+        spacing.sm,
     },
 
     themeButton: {
@@ -430,72 +549,93 @@ function createStyles(
       height: fixed.minTouch,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.surface,
-      borderWidth: fixed.hairline,
-      borderColor: colors.border,
-      borderRadius: radius.pill,
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        fixed.hairline,
+      borderColor:
+        colors.border,
+      borderRadius:
+        radius.pill,
+    },
+
+    brand: {
+      alignItems: "center",
+      marginBottom:
+        spacing.xl,
     },
 
     logoContainer: {
-      alignItems: "center",
-      marginBottom: spacing.xl,
-    },
-
-    logo: {
       width: 72,
       height: 72,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.primary,
+      backgroundColor:
+        colors.primary,
       borderRadius: 24,
       ...shadow(2),
     },
 
     appName: {
-      marginTop: spacing.md,
+      marginTop:
+        spacing.md,
       color: colors.text,
-      fontSize: fontSize.xl,
+      fontSize:
+        fontSize.xl,
       fontWeight: "900",
     },
 
-    appSubtitle: {
+    appDescription: {
       maxWidth: 310,
-      marginTop: spacing.xs,
-      color: colors.textMuted,
-      fontSize: fontSize.sm,
+      marginTop:
+        spacing.xs,
+      color:
+        colors.textMuted,
+      fontSize:
+        fontSize.sm,
       textAlign: "center",
       lineHeight: 20,
     },
 
     loginCard: {
-      padding: spacing.lg,
-      backgroundColor: colors.surface,
-      borderWidth: fixed.hairline,
-      borderColor: colors.border,
-      borderRadius: radius.lg,
+      padding:
+        spacing.lg,
+      backgroundColor:
+        colors.surface,
+      borderWidth:
+        fixed.hairline,
+      borderColor:
+        colors.border,
+      borderRadius:
+        radius.lg,
       ...shadow(2),
     },
 
     title: {
       color: colors.text,
-      fontSize: fontSize.xl,
+      fontSize:
+        fontSize.xl,
       fontWeight: "900",
     },
 
     subtitle: {
-      marginTop: spacing.xs,
-      color: colors.textMuted,
-      fontSize: fontSize.sm,
-      lineHeight: 20,
+      marginTop:
+        spacing.xs,
+      color:
+        colors.textMuted,
+      fontSize:
+        fontSize.sm,
     },
 
     roleSelector: {
       flexDirection: "row",
-      marginTop: spacing.lg,
+      marginTop:
+        spacing.lg,
       padding: 4,
       backgroundColor:
         colors.surfaceSecondary,
-      borderRadius: radius.md,
+      borderRadius:
+        radius.md,
     },
 
     roleButton: {
@@ -504,48 +644,63 @@ function createStyles(
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      borderRadius: radius.md,
+      borderRadius:
+        radius.md,
     },
 
     activeRoleButton: {
-      backgroundColor: colors.primary,
+      backgroundColor:
+        colors.primary,
     },
 
-    roleButtonText: {
-      marginLeft: spacing.xs,
-      color: colors.textMuted,
-      fontSize: fontSize.sm,
+    roleText: {
+      marginLeft:
+        spacing.xs,
+      color:
+        colors.textMuted,
+      fontSize:
+        fontSize.sm,
       fontWeight: "800",
     },
 
-    activeRoleButtonText: {
+    activeRoleText: {
       color: "#ffffff",
     },
 
     errorBox: {
       flexDirection: "row",
       alignItems: "center",
-      marginTop: spacing.md,
-      padding: spacing.md,
-      backgroundColor: isDark
-        ? "#3b1d25"
-        : "#fee2e2",
-      borderRadius: radius.md,
+      marginTop:
+        spacing.md,
+      padding:
+        spacing.md,
+      backgroundColor:
+        isDark
+          ? "#3b1d25"
+          : "#fee2e2",
+      borderRadius:
+        radius.md,
     },
 
     errorText: {
       flex: 1,
-      marginLeft: spacing.sm,
-      color: colors.danger,
-      fontSize: fontSize.sm,
+      marginLeft:
+        spacing.sm,
+      color:
+        colors.danger,
+      fontSize:
+        fontSize.sm,
       fontWeight: "700",
     },
 
     label: {
-      marginTop: spacing.lg,
-      marginBottom: spacing.sm,
+      marginTop:
+        spacing.lg,
+      marginBottom:
+        spacing.sm,
       color: colors.text,
-      fontSize: fontSize.sm,
+      fontSize:
+        fontSize.sm,
       fontWeight: "800",
     },
 
@@ -553,19 +708,25 @@ function createStyles(
       minHeight: 52,
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: spacing.md,
+      paddingHorizontal:
+        spacing.md,
       backgroundColor:
         colors.surfaceSecondary,
-      borderWidth: fixed.hairline,
-      borderColor: colors.border,
-      borderRadius: radius.md,
+      borderWidth:
+        fixed.hairline,
+      borderColor:
+        colors.border,
+      borderRadius:
+        radius.md,
     },
 
     input: {
       flex: 1,
-      marginHorizontal: spacing.sm,
+      marginHorizontal:
+        spacing.sm,
       color: colors.text,
-      fontSize: fontSize.md,
+      fontSize:
+        fontSize.md,
     },
 
     loginButton: {
@@ -573,45 +734,72 @@ function createStyles(
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      marginTop: spacing.xl,
-      backgroundColor: colors.primary,
-      borderRadius: radius.md,
+      marginTop:
+        spacing.xl,
+      backgroundColor:
+        colors.primary,
+      borderRadius:
+        radius.md,
     },
 
     loginButtonText: {
-      marginRight: spacing.sm,
+      marginRight:
+        spacing.sm,
       color: "#ffffff",
-      fontSize: fontSize.md,
+      fontSize:
+        fontSize.md,
       fontWeight: "900",
+    },
+
+    registerLink: {
+      alignItems: "center",
+      paddingTop:
+        spacing.lg,
+    },
+
+    registerLinkText: {
+      color:
+        colors.textMuted,
+      fontSize:
+        fontSize.sm,
+    },
+
+    registerLinkStrong: {
+      color:
+        colors.primary,
+      fontWeight: "900",
+    },
+
+    adminHint: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop:
+        spacing.lg,
+      padding:
+        spacing.md,
+      backgroundColor:
+        colors.primarySoft,
+      borderRadius:
+        radius.md,
+    },
+
+    adminHintText: {
+      marginLeft:
+        spacing.sm,
+      color:
+        colors.primary,
+      fontSize:
+        fontSize.sm,
+      fontWeight: "700",
     },
 
     disabledButton: {
-      opacity: 0.6,
-    },
-
-    demoBox: {
-      marginTop: spacing.md,
-      padding: spacing.md,
-      backgroundColor:
-        colors.primarySoft,
-      borderRadius: radius.md,
-    },
-
-    demoTitle: {
-      color: colors.primary,
-      fontSize: fontSize.xs,
-      fontWeight: "900",
-      textTransform: "uppercase",
-    },
-
-    demoText: {
-      marginTop: spacing.xs,
-      color: colors.textMuted,
-      fontSize: fontSize.xs,
+      opacity: 0.55,
     },
 
     pressed: {
-      opacity: 0.72,
+      opacity: 0.7,
       transform: [
         {
           scale: 0.98,

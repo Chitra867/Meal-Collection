@@ -26,6 +26,7 @@ import RecipeFormModal from "./src/components/RecipeFormModal";
 import RecipeDetailsScreen from "./src/screens/RecipeDetailsScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import AdminDashboardScreen from "./src/screens/AdminDashboardScreen";
+import RegisterScreen from "./src/screens/RegisterScreen";
 
 import SEED_ITEMS from "./src/data/seed";
 
@@ -318,122 +319,109 @@ function AppContent() {
         theme={navigationTheme}
       >
         <Stack.Navigator
-          screenOptions={{
-            headerShown: false,
+  screenOptions={{
+    headerShown: false,
+    animation: "slide_from_right",
 
-            animation:
-              "slide_from_right",
+    contentStyle: {
+      backgroundColor: colors.bg,
+    },
+  }}
+>
+  {!user ? (
+    <>
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+      />
 
-            contentStyle: {
-              backgroundColor:
-                colors.bg,
-            },
-          }}
-        >
-          {!user ? (
-            <Stack.Screen
-              name="Login"
-              component={LoginScreen}
-            />
-          ) : user.role === "admin" ? (
-            <Stack.Screen
-              name="AdminDashboard"
-              component={
-                AdminDashboardScreen
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+      />
+    </>
+  ) : user.role === "admin" ? (
+    <Stack.Screen
+      name="AdminDashboard"
+      component={AdminDashboardScreen}
+    />
+  ) : (
+    <>
+      <Stack.Screen name="UserTabs">
+        {({ navigation }) => (
+          <UserTabNavigator
+            items={items}
+            onAdd={handleOpenAdd}
+            onEdit={handleOpenEdit}
+            onDelete={handleDeleteRecipe}
+            onToggleFavourite={
+              handleToggleFavourite
+            }
+            onOpenDetails={(recipe) => {
+              if (!recipe?.id) {
+                return;
               }
-            />
-          ) : (
-            <>
-              <Stack.Screen
-                name="UserTabs"
-              >
-                {({ navigation }) => (
-                  <UserTabNavigator
-                    items={items}
-                    onAdd={handleOpenAdd}
-                    onEdit={
-                      handleOpenEdit
-                    }
-                    onDelete={
-                      handleDeleteRecipe
-                    }
-                    onToggleFavourite={
-                      handleToggleFavourite
-                    }
-                    onOpenDetails={(
-                      recipe
-                    ) => {
-                      if (!recipe?.id) {
-                        return;
-                      }
 
-                      navigation.navigate(
-                        "RecipeDetails",
-                        {
-                          recipeId:
-                            recipe.id,
-                        }
-                      );
-                    }}
-                  />
-                )}
-              </Stack.Screen>
+              navigation.navigate(
+                "RecipeDetails",
+                {
+                  recipeId: recipe.id,
+                }
+              );
+            }}
+          />
+        )}
+      </Stack.Screen>
 
-              <Stack.Screen
-                name="RecipeDetails"
-              >
-                {({
-                  navigation,
-                  route,
-                }) => {
-                  const recipeId =
-                    route.params?.recipeId;
+      <Stack.Screen name="RecipeDetails">
+        {({
+          navigation,
+          route,
+        }) => {
+          const recipeId =
+            route.params?.recipeId;
 
-                  const recipe =
-                    items.find(
-                      (item) =>
-                        item.id ===
-                        recipeId
-                    );
+          const recipe = items.find(
+            (item) =>
+              item.id === recipeId
+          );
 
-                  return (
-                    <RecipeDetailsScreen
-                      recipe={recipe}
-                      onBack={() =>
-                        navigation.goBack()
-                      }
-                      onEdit={() => {
-                        if (recipe) {
-                          handleOpenEdit(
-                            recipe
-                          );
-                        }
-                      }}
-                      onToggleFavourite={() => {
-                        if (recipe) {
-                          handleToggleFavourite(
-                            recipe.id
-                          );
-                        }
-                      }}
-                      onDelete={() => {
-                        if (!recipe) {
-                          return;
-                        }
-
-                        handleDeleteRecipe(
-                          recipe.id
-                        );
-
-                        navigation.goBack();
-                      }}
-                    />
+          return (
+            <RecipeDetailsScreen
+              recipe={recipe}
+              onBack={() =>
+                navigation.goBack()
+              }
+              onEdit={() => {
+                if (recipe) {
+                  handleOpenEdit(recipe);
+                }
+              }}
+              onToggleFavourite={() => {
+                if (recipe) {
+                  handleToggleFavourite(
+                    recipe.id
                   );
-                }}
-              </Stack.Screen>
-            </>
-          )}
-        </Stack.Navigator>
+                }
+              }}
+              onDelete={() => {
+                if (!recipe) {
+                  return;
+                }
+
+                handleDeleteRecipe(
+                  recipe.id
+                );
+
+                navigation.goBack();
+              }}
+            />
+          );
+        }}
+      </Stack.Screen>
+    </>
+  )}
+</Stack.Navigator>
       </NavigationContainer>
 
       {user?.role === "user" ? (
