@@ -1,4 +1,8 @@
 import {
+  useMemo,
+} from "react";
+
+import {
   StyleSheet,
 } from "react-native";
 
@@ -6,9 +10,7 @@ import {
   createBottomTabNavigator,
 } from "@react-navigation/bottom-tabs";
 
-import {
-  Ionicons,
-} from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 import AdminDashboardScreen from "../screens/admin/AdminDashboardScreen";
 import ManageUsersScreen from "../screens/admin/ManageUsersScreen";
@@ -24,13 +26,18 @@ import {
   useTheme,
 } from "../contexts/ThemeContext";
 
-const Tab =
-  createBottomTabNavigator();
+const Tab = createBottomTabNavigator();
 
-export default function AdminTabNavigator() {
+export default function AdminTabNavigator({
+  items = [],
+  onDeleteRecipe = () => {},
+}) {
   const { colors } = useTheme();
 
-  const styles = createStyles(colors);
+  const styles = useMemo(
+    () => createStyles(colors),
+    [colors]
+  );
 
   return (
     <Tab.Navigator
@@ -59,57 +66,34 @@ export default function AdminTabNavigator() {
           color,
           size,
         }) => {
-          let iconName =
-            "ellipse-outline";
-
-          if (
-            route.name ===
-            "AdminDashboard"
-          ) {
-            iconName = focused
+          const icons = {
+            AdminDashboard: focused
               ? "grid"
-              : "grid-outline";
-          }
+              : "grid-outline",
 
-          if (
-            route.name ===
-            "ManageUsers"
-          ) {
-            iconName = focused
+            ManageUsers: focused
               ? "people"
-              : "people-outline";
-          }
+              : "people-outline",
 
-          if (
-            route.name ===
-            "ManageRecipes"
-          ) {
-            iconName = focused
+            ManageRecipes: focused
               ? "restaurant"
-              : "restaurant-outline";
-          }
+              : "restaurant-outline",
 
-          if (
-            route.name ===
-            "AdminStatistics"
-          ) {
-            iconName = focused
+            AdminStatistics: focused
               ? "bar-chart"
-              : "bar-chart-outline";
-          }
+              : "bar-chart-outline",
 
-          if (
-            route.name ===
-            "AdminProfile"
-          ) {
-            iconName = focused
+            AdminProfile: focused
               ? "person-circle"
-              : "person-circle-outline";
-          }
+              : "person-circle-outline",
+          };
 
           return (
             <Ionicons
-              name={iconName}
+              name={
+                icons[route.name] ||
+                "ellipse-outline"
+              }
               size={size}
               color={color}
             />
@@ -119,19 +103,20 @@ export default function AdminTabNavigator() {
     >
       <Tab.Screen
         name="AdminDashboard"
-        component={
-          AdminDashboardScreen
-        }
         options={{
           title: "Dashboard",
         }}
-      />
+      >
+        {() => (
+          <AdminDashboardScreen
+            items={items}
+          />
+        )}
+      </Tab.Screen>
 
       <Tab.Screen
         name="ManageUsers"
-        component={
-          ManageUsersScreen
-        }
+        component={ManageUsersScreen}
         options={{
           title: "Users",
         }}
@@ -139,29 +124,36 @@ export default function AdminTabNavigator() {
 
       <Tab.Screen
         name="ManageRecipes"
-        component={
-          ManageRecipesScreen
-        }
         options={{
           title: "Recipes",
         }}
-      />
+      >
+        {() => (
+          <ManageRecipesScreen
+            items={items}
+            onDeleteRecipe={
+              onDeleteRecipe
+            }
+          />
+        )}
+      </Tab.Screen>
 
       <Tab.Screen
         name="AdminStatistics"
-        component={
-          AdminStatisticsScreen
-        }
         options={{
           title: "Statistics",
         }}
-      />
+      >
+        {() => (
+          <AdminStatisticsScreen
+            items={items}
+          />
+        )}
+      </Tab.Screen>
 
       <Tab.Screen
         name="AdminProfile"
-        component={
-          AdminProfileScreen
-        }
+        component={AdminProfileScreen}
         options={{
           title: "Profile",
         }}
@@ -176,16 +168,9 @@ function createStyles(colors) {
       height: 72,
       paddingTop: 7,
       paddingBottom: 8,
-
-      backgroundColor:
-        colors.surface,
-
-      borderTopWidth:
-        fixed.hairline,
-
-      borderTopColor:
-        colors.border,
-
+      backgroundColor: colors.surface,
+      borderTopWidth: fixed.hairline,
+      borderTopColor: colors.border,
       elevation: 12,
     },
 

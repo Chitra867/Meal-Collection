@@ -272,3 +272,112 @@ export async function getRegisteredUsers() {
 
   return users.map(removePrivateFields);
 }
+
+export async function updateRegisteredUserStatus(
+  userId,
+  isActive
+) {
+  try {
+    const users = await readUsers();
+
+    const userExists = users.some(
+      (user) => user.id === userId
+    );
+
+    if (!userExists) {
+      return {
+        success: false,
+        message: "User account was not found.",
+      };
+    }
+
+    const updatedUsers = users.map((user) =>
+      user.id === userId
+        ? {
+            ...user,
+            isActive: Boolean(isActive),
+            updatedAt: new Date().toISOString(),
+          }
+        : user
+    );
+
+    await writeUsers(updatedUsers);
+
+    const updatedUser = updatedUsers.find(
+      (user) => user.id === userId
+    );
+
+    return {
+      success: true,
+      user: removePrivateFields(updatedUser),
+    };
+  } catch (error) {
+    console.error(
+      "Failed to update user status:",
+      error
+    );
+
+    return {
+      success: false,
+      message:
+        "The user status could not be updated.",
+    };
+  }
+}
+
+export async function deleteRegisteredUser(
+  userId
+) {
+  try {
+    const users = await readUsers();
+
+    const updatedUsers = users.filter(
+      (user) => user.id !== userId
+    );
+
+    if (updatedUsers.length === users.length) {
+      return {
+        success: false,
+        message: "User account was not found.",
+      };
+    }
+
+    await writeUsers(updatedUsers);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error(
+      "Failed to delete registered user:",
+      error
+    );
+
+    return {
+      success: false,
+      message:
+        "The user account could not be deleted.",
+    };
+  }
+}
+
+export async function getRegisteredUserById(
+  userId
+) {
+  try {
+    const users = await readUsers();
+
+    const user = users.find(
+      (item) => item.id === userId
+    );
+
+    return removePrivateFields(user);
+  } catch (error) {
+    console.error(
+      "Failed to find registered user:",
+      error
+    );
+
+    return null;
+  }
+}

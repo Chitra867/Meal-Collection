@@ -376,10 +376,16 @@ function AppContent() {
             "admin" ? (
             <Stack.Screen
               name="AdminPanel"
-              component={
-                AdminTabNavigator
-              }
-            />
+            >
+              {() => (
+                <AdminTabNavigator
+                  items={items}
+                  onDeleteRecipe={
+                    handleDeleteRecipe
+                  }
+                />
+              )}
+            </Stack.Screen>
           ) : (
             <>
               <Stack.Screen
@@ -509,15 +515,14 @@ export default function App() {
   );
 }
 
-const styles =
-  StyleSheet.create({
-    app: {
-      flex: 1,
-    },
+const styles = StyleSheet.create({
+  app: {
+    flex: 1,
+  },
 
-    loadingContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  });
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
