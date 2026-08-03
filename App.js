@@ -24,6 +24,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import UserTabNavigator from "./src/navigation/UserTabNavigator";
 import RecipeFormModal from "./src/components/RecipeFormModal";
 import RecipeDetailsScreen from "./src/screens/RecipeDetailsScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+import AdminDashboardScreen from "./src/screens/AdminDashboardScreen";
+
 import SEED_ITEMS from "./src/data/seed";
 
 import {
@@ -35,6 +38,11 @@ import {
   ThemeProvider,
   useTheme,
 } from "./src/contexts/ThemeContext";
+
+import {
+  AuthProvider,
+  useAuth,
+} from "./src/contexts/AuthContext";
 
 const Stack = createNativeStackNavigator();
 
@@ -55,9 +63,12 @@ function AppContent() {
     isDark,
   } = useTheme();
 
-  const [items, setItems] =
-    useState([]);
+  const {
+    user,
+    isAuthLoading,
+  } = useAuth();
 
+  const [items, setItems] = useState([]);
   const [hasLoaded, setHasLoaded] =
     useState(false);
 
@@ -85,8 +96,7 @@ function AppContent() {
         card: colors.surface,
         text: colors.text,
         border: colors.border,
-        notification:
-          colors.favourite,
+        notification: colors.favourite,
       },
     };
   }, [colors, isDark]);
@@ -152,6 +162,10 @@ function AppContent() {
 
   const handleToggleFavourite =
     useCallback((recipeId) => {
+      if (!recipeId) {
+        return;
+      }
+
       setItems((currentItems) =>
         currentItems.map((item) =>
           item.id === recipeId
@@ -219,11 +233,8 @@ function AppContent() {
             source: "mine",
             favourite: false,
 
-            createdAt:
-              currentDate,
-
-            updatedAt:
-              currentDate,
+            createdAt: currentDate,
+            updatedAt: currentDate,
           };
 
           setItems(
@@ -256,7 +267,7 @@ function AppContent() {
       );
     }, []);
 
-  if (!hasLoaded) {
+  if (isAuthLoading || !hasLoaded) {
     return (
       <View
         style={[
@@ -307,7 +318,6 @@ function AppContent() {
         theme={navigationTheme}
       >
         <Stack.Navigator
-          initialRouteName="UserTabs"
           screenOptions={{
             headerShown: false,
 
@@ -320,100 +330,120 @@ function AppContent() {
             },
           }}
         >
-          <Stack.Screen
-            name="UserTabs"
-          >
-            {({ navigation }) => (
-              <UserTabNavigator
-                items={items}
-                onAdd={handleOpenAdd}
-                onEdit={handleOpenEdit}
-                onDelete={
-                  handleDeleteRecipe
-                }
-                onToggleFavourite={
-                  handleToggleFavourite
-                }
-                onOpenDetails={(
-                  recipe
-                ) => {
-                  if (!recipe?.id) {
-                    return;
-                  }
-
-                  navigation.navigate(
-                    "RecipeDetails",
-                    {
-                      recipeId:
-                        recipe.id,
+          {!user ? (
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+            />
+          ) : user.role === "admin" ? (
+            <Stack.Screen
+              name="AdminDashboard"
+              component={
+                AdminDashboardScreen
+              }
+            />
+          ) : (
+            <>
+              <Stack.Screen
+                name="UserTabs"
+              >
+                {({ navigation }) => (
+                  <UserTabNavigator
+                    items={items}
+                    onAdd={handleOpenAdd}
+                    onEdit={
+                      handleOpenEdit
                     }
-                  );
-                }}
-              />
-            )}
-          </Stack.Screen>
+                    onDelete={
+                      handleDeleteRecipe
+                    }
+                    onToggleFavourite={
+                      handleToggleFavourite
+                    }
+                    onOpenDetails={(
+                      recipe
+                    ) => {
+                      if (!recipe?.id) {
+                        return;
+                      }
 
-          <Stack.Screen
-            name="RecipeDetails"
-          >
-            {({
-              navigation,
-              route,
-            }) => {
-              const recipeId =
-                route.params?.recipeId;
-
-              const recipe =
-                items.find(
-                  (item) =>
-                    item.id ===
-                    recipeId
-                );
-
-              return (
-                <RecipeDetailsScreen
-                  recipe={recipe}
-                  onBack={() =>
-                    navigation.goBack()
-                  }
-                  onEdit={() => {
-                    if (recipe) {
-                      handleOpenEdit(
-                        recipe
+                      navigation.navigate(
+                        "RecipeDetails",
+                        {
+                          recipeId:
+                            recipe.id,
+                        }
                       );
-                    }
-                  }}
-                  onToggleFavourite={() => {
-                    if (recipe) {
-                      handleToggleFavourite(
-                        recipe.id
-                      );
-                    }
-                  }}
-                  onDelete={() => {
-                    if (!recipe) {
-                      return;
-                    }
+                    }}
+                  />
+                )}
+              </Stack.Screen>
 
-                    handleDeleteRecipe(
-                      recipe.id
+              <Stack.Screen
+                name="RecipeDetails"
+              >
+                {({
+                  navigation,
+                  route,
+                }) => {
+                  const recipeId =
+                    route.params?.recipeId;
+
+                  const recipe =
+                    items.find(
+                      (item) =>
+                        item.id ===
+                        recipeId
                     );
 
-                    navigation.goBack();
-                  }}
-                />
-              );
-            }}
-          </Stack.Screen>
+                  return (
+                    <RecipeDetailsScreen
+                      recipe={recipe}
+                      onBack={() =>
+                        navigation.goBack()
+                      }
+                      onEdit={() => {
+                        if (recipe) {
+                          handleOpenEdit(
+                            recipe
+                          );
+                        }
+                      }}
+                      onToggleFavourite={() => {
+                        if (recipe) {
+                          handleToggleFavourite(
+                            recipe.id
+                          );
+                        }
+                      }}
+                      onDelete={() => {
+                        if (!recipe) {
+                          return;
+                        }
+
+                        handleDeleteRecipe(
+                          recipe.id
+                        );
+
+                        navigation.goBack();
+                      }}
+                    />
+                  );
+                }}
+              </Stack.Screen>
+            </>
+          )}
         </Stack.Navigator>
       </NavigationContainer>
 
-      <RecipeFormModal
-        visible={formVisible}
-        recipe={editingRecipe}
-        onClose={handleCloseForm}
-        onSave={handleSaveRecipe}
-      />
+      {user?.role === "user" ? (
+        <RecipeFormModal
+          visible={formVisible}
+          recipe={editingRecipe}
+          onClose={handleCloseForm}
+          onSave={handleSaveRecipe}
+        />
+      ) : null}
     </View>
   );
 }
@@ -422,7 +452,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
