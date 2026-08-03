@@ -1,10 +1,6 @@
-import {
-  useMemo,
-} from "react";
+import { useMemo } from "react";
 
-import {
-  StyleSheet,
-} from "react-native";
+import { StyleSheet } from "react-native";
 
 import {
   createBottomTabNavigator,
@@ -18,9 +14,7 @@ import ManageRecipesScreen from "../screens/admin/ManageRecipesScreen";
 import AdminStatisticsScreen from "../screens/admin/AdminStatisticsScreen";
 import AdminProfileScreen from "../screens/admin/AdminProfileScreen";
 
-import {
-  fixed,
-} from "../constants/theme";
+import { fixed } from "../constants/theme";
 
 import {
   useTheme,
@@ -107,8 +101,9 @@ export default function AdminTabNavigator({
           title: "Dashboard",
         }}
       >
-        {() => (
+        {(screenProps) => (
           <AdminDashboardScreen
+            {...screenProps}
             items={items}
           />
         )}
@@ -128,8 +123,9 @@ export default function AdminTabNavigator({
           title: "Recipes",
         }}
       >
-        {() => (
+        {(screenProps) => (
           <ManageRecipesScreen
+            {...screenProps}
             items={items}
             onDeleteRecipe={
               onDeleteRecipe
@@ -144,8 +140,9 @@ export default function AdminTabNavigator({
           title: "Statistics",
         }}
       >
-        {() => (
+        {(screenProps) => (
           <AdminStatisticsScreen
+            {...screenProps}
             items={items}
           />
         )}
@@ -153,11 +150,17 @@ export default function AdminTabNavigator({
 
       <Tab.Screen
         name="AdminProfile"
-        component={AdminProfileScreen}
         options={{
           title: "Profile",
         }}
-      />
+      >
+        {(screenProps) => (
+          <AdminProfileScreen
+            {...screenProps}
+            items={items}
+          />
+        )}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }
@@ -168,10 +171,25 @@ function createStyles(colors) {
       height: 72,
       paddingTop: 7,
       paddingBottom: 8,
-      backgroundColor: colors.surface,
-      borderTopWidth: fixed.hairline,
-      borderTopColor: colors.border,
+
+      backgroundColor:
+        colors.surface,
+
+      borderTopWidth:
+        fixed.hairline,
+
+      borderTopColor:
+        colors.border,
+
       elevation: 12,
+
+      shadowColor: "#000000",
+      shadowOffset: {
+        width: 0,
+        height: -2,
+      },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
     },
 
     tabBarLabel: {
