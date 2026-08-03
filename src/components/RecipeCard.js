@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   Image,
   Pressable,
@@ -7,8 +13,9 @@ import {
   View,
 } from "react-native";
 
+import { Ionicons } from "@expo/vector-icons";
+
 import {
-  colors,
   fixed,
   fontSize,
   lineHeight,
@@ -17,60 +24,124 @@ import {
   spacing,
 } from "../constants/theme";
 
-export default function RecipeCard({
+import {
+  useTheme,
+} from "../contexts/ThemeContext";
+
+function RecipeCard({
   item,
   width,
-  onOpenDetails,
-  onEdit,
-  onDelete,
-  onToggleFavourite,
+  onOpenDetails = () => {},
+  onEdit = () => {},
+  onDelete = () => {},
+  onToggleFavourite = () => {},
 }) {
+  const {
+    colors,
+    isDark,
+  } = useTheme();
+
+  const styles = useMemo(
+    () => createStyles(colors, isDark),
+    [colors, isDark]
+  );
+
   const [imageFailed, setImageFailed] =
     useState(false);
 
   useEffect(() => {
     setImageFailed(false);
-  }, [item.image]);
+  }, [item?.image]);
+
+  if (!item) {
+    return null;
+  }
+
+  const tags = Array.isArray(item.tags)
+    ? item.tags
+    : [];
 
   const showImage =
-    Boolean(item.image) && !imageFailed;
+    Boolean(item.image) &&
+    !imageFailed;
 
   const handleFavourite = (event) => {
-    event.stopPropagation?.();
-    onToggleFavourite(item.id);
+    event?.stopPropagation?.();
+
+    if (item.id) {
+      onToggleFavourite(item.id);
+    }
   };
 
   return (
-    <View style={[styles.card, { width }]}>
+    <View
+      style={[
+        styles.card,
+        {
+          width,
+        },
+      ]}
+    >
       <Pressable
-        onPress={() => onOpenDetails(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${item.title}`}
+        onPress={() =>
+          onOpenDetails(item)
+        }
         style={({ pressed }) => [
-          pressed && styles.contentPressed,
+          pressed &&
+            styles.contentPressed,
         ]}
       >
         <View style={styles.imageContainer}>
           {showImage ? (
             <Image
-              source={{ uri: item.image }}
+              source={{
+                uri: item.image,
+              }}
               style={styles.image}
               resizeMode="cover"
-              onError={() => setImageFailed(true)}
+              onError={() =>
+                setImageFailed(true)
+              }
             />
           ) : (
-            <View style={styles.imagePlaceholder}>
-              <Text style={styles.placeholderIcon}>
-                🍽️
-              </Text>
+            <View
+              style={
+                styles.imagePlaceholder
+              }
+            >
+              <View
+                style={
+                  styles.placeholderCircle
+                }
+              >
+                <Ionicons
+                  name="restaurant-outline"
+                  size={30}
+                  color={colors.primary}
+                />
+              </View>
 
-              <Text style={styles.placeholderText}>
+              <Text
+                style={
+                  styles.placeholderText
+                }
+              >
                 No image available
               </Text>
             </View>
           )}
 
           <View style={styles.timeBadge}>
+            <Ionicons
+              name="time-outline"
+              size={14}
+              color="#ffffff"
+            />
+
             <Text style={styles.timeText}>
-              {item.minutes} min
+              {Number(item.minutes) || 0} min
             </Text>
           </View>
 
@@ -84,40 +155,59 @@ export default function RecipeCard({
             onPress={handleFavourite}
             style={({ pressed }) => [
               styles.favouriteButton,
-              pressed && styles.buttonPressed,
+              pressed &&
+                styles.buttonPressed,
             ]}
           >
-            <Text style={styles.favouriteIcon}>
-              {item.favourite ? "★" : "☆"}
-            </Text>
+            <Ionicons
+              name={
+                item.favourite
+                  ? "heart"
+                  : "heart-outline"
+              }
+              size={24}
+              color={colors.favourite}
+            />
           </Pressable>
         </View>
 
         <View style={styles.cardBody}>
           <Text
             style={styles.recipeTitle}
-            numberOfLines={1}
+            numberOfLines={2}
           >
-            {item.title}
+            {item.title ||
+              "Untitled recipe"}
           </Text>
 
-          <Text
-            style={styles.subtitle}
-            numberOfLines={1}
-          >
-            {item.subtitle}
-          </Text>
+          {item.subtitle ? (
+            <Text
+              style={styles.subtitle}
+              numberOfLines={1}
+            >
+              {item.subtitle}
+            </Text>
+          ) : null}
 
-          {item.tags?.length > 0 ? (
-            <View style={styles.tagsContainer}>
-              {item.tags
+          {tags.length > 0 ? (
+            <View
+              style={
+                styles.tagsContainer
+              }
+            >
+              {tags
                 .slice(0, 3)
-                .map((tag) => (
+                .map((tag, index) => (
                   <View
-                    key={`${item.id}-${tag}`}
+                    key={`${item.id}-tag-${index}`}
                     style={styles.tag}
                   >
-                    <Text style={styles.tagText}>
+                    <Text
+                      style={
+                        styles.tagText
+                      }
+                      numberOfLines={1}
+                    >
                       {tag}
                     </Text>
                   </View>
@@ -134,208 +224,292 @@ export default function RecipeCard({
             </Text>
           ) : null}
 
-          <Text style={styles.detailsText}>
-            View full recipe →
-          </Text>
+          <View style={styles.detailsRow}>
+            <Text
+              style={styles.detailsText}
+            >
+              View recipe
+            </Text>
+
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color={colors.primary}
+            />
+          </View>
         </View>
       </Pressable>
 
-      <View style={styles.actions}>
-        <Pressable
-          onPress={() => onEdit(item)}
-          style={({ pressed }) => [
-            styles.actionButton,
-            styles.editButton,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.editButtonText}>
-            Edit
-          </Text>
-        </Pressable>
+      {item.source === "mine" ? (
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              onEdit(item)
+            }
+            style={({ pressed }) => [
+              styles.actionButton,
+              styles.editButton,
+              pressed &&
+                styles.buttonPressed,
+            ]}
+          >
+            <Ionicons
+              name="create-outline"
+              size={17}
+              color={colors.primary}
+            />
 
-        <Pressable
-          onPress={() => onDelete(item)}
-          style={({ pressed }) => [
-            styles.actionButton,
-            styles.deleteButton,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.deleteButtonText}>
-            Delete
-          </Text>
-        </Pressable>
-      </View>
+            <Text
+              style={
+                styles.editButtonText
+              }
+            >
+              Edit
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              onDelete(item)
+            }
+            style={({ pressed }) => [
+              styles.actionButton,
+              styles.deleteButton,
+              pressed &&
+                styles.buttonPressed,
+            ]}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={17}
+              color={colors.danger}
+            />
+
+            <Text
+              style={
+                styles.deleteButtonText
+              }
+            >
+              Delete
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    overflow: "hidden",
-    marginBottom: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: fixed.hairline,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    ...shadow(2),
-  },
+function createStyles(
+  colors,
+  isDark
+) {
+  return StyleSheet.create({
+    card: {
+      overflow: "hidden",
+      marginBottom: spacing.lg,
+      backgroundColor: colors.surface,
+      borderWidth: fixed.hairline,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      ...shadow(2),
+    },
 
-  contentPressed: {
-    opacity: 0.88,
-  },
+    contentPressed: {
+      opacity: 0.9,
+    },
 
-  imageContainer: {
-    position: "relative",
-    backgroundColor: colors.border,
-  },
+    imageContainer: {
+      position: "relative",
+      backgroundColor:
+        colors.surfaceSecondary,
+    },
 
-  image: {
-    width: "100%",
-    aspectRatio: 16 / 9,
-  },
+    image: {
+      width: "100%",
+      aspectRatio: 16 / 9,
+    },
 
-  imagePlaceholder: {
-    width: "100%",
-    aspectRatio: 16 / 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.border,
-  },
+    imagePlaceholder: {
+      width: "100%",
+      aspectRatio: 16 / 9,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        colors.surfaceSecondary,
+    },
 
-  placeholderIcon: {
-    fontSize: fontSize.xxl,
-  },
+    placeholderCircle: {
+      width: 58,
+      height: 58,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        colors.primarySoft,
+      borderRadius: 29,
+    },
 
-  placeholderText: {
-    marginTop: spacing.xs,
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-  },
+    placeholderText: {
+      marginTop: spacing.sm,
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+    },
 
-  timeBadge: {
-    position: "absolute",
-    left: spacing.sm,
-    bottom: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: "rgba(17,24,39,0.82)",
-    borderRadius: radius.pill,
-  },
+    timeBadge: {
+      position: "absolute",
+      left: spacing.md,
+      bottom: spacing.md,
+      minHeight: 32,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: spacing.sm,
+      backgroundColor:
+        "rgba(15, 23, 42, 0.86)",
+      borderRadius: radius.pill,
+    },
 
-  timeText: {
-    color: colors.surface,
-    fontSize: fontSize.xs,
-    fontWeight: "700",
-  },
+    timeText: {
+      marginLeft: 4,
+      color: "#ffffff",
+      fontSize: fontSize.xs,
+      fontWeight: "800",
+    },
 
-  favouriteButton: {
-    position: "absolute",
-    top: spacing.sm,
-    right: spacing.sm,
-    width: fixed.minTouch,
-    height: fixed.minTouch,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.94)",
-    borderRadius: radius.pill,
-  },
+    favouriteButton: {
+      position: "absolute",
+      top: spacing.md,
+      right: spacing.md,
+      width: 46,
+      height: 46,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        isDark
+          ? "rgba(21, 30, 47, 0.94)"
+          : "rgba(255, 255, 255, 0.94)",
+      borderWidth: fixed.hairline,
+      borderColor: colors.border,
+      borderRadius: 23,
+      ...shadow(1),
+    },
 
-  favouriteIcon: {
-    color: colors.favourite,
-    fontSize: fontSize.xl,
-  },
+    cardBody: {
+      padding: spacing.lg,
+    },
 
-  cardBody: {
-    padding: spacing.lg,
-  },
+    recipeTitle: {
+      color: colors.text,
+      fontSize: fontSize.lg,
+      fontWeight: "900",
+      lineHeight: lineHeight(
+        fontSize.lg
+      ),
+    },
 
-  recipeTitle: {
-    color: colors.text,
-    fontSize: fontSize.lg,
-    fontWeight: "800",
-    lineHeight: lineHeight(fontSize.lg),
-  },
+    subtitle: {
+      marginTop: spacing.xs,
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+    },
 
-  subtitle: {
-    marginTop: spacing.xs,
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-  },
+    tagsContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginTop: spacing.md,
+    },
 
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: spacing.md,
-  },
+    tag: {
+      marginRight: spacing.xs,
+      marginBottom: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 5,
+      backgroundColor: colors.tagBg,
+      borderRadius: radius.pill,
+    },
 
-  tag: {
-    marginRight: spacing.xs,
-    marginBottom: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.tagBg,
-    borderRadius: radius.pill,
-  },
+    tagText: {
+      color: colors.tagText,
+      fontSize: fontSize.xs,
+      fontWeight: "800",
+    },
 
-  tagText: {
-    color: colors.tagText,
-    fontSize: fontSize.xs,
-    fontWeight: "700",
-  },
+    notes: {
+      marginTop: spacing.sm,
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+      lineHeight: lineHeight(
+        fontSize.sm
+      ),
+    },
 
-  notes: {
-    marginTop: spacing.sm,
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight(fontSize.sm),
-  },
+    detailsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: spacing.md,
+    },
 
-  detailsText: {
-    marginTop: spacing.md,
-    color: colors.primary,
-    fontSize: fontSize.sm,
-    fontWeight: "800",
-  },
+    detailsText: {
+      marginRight: spacing.xs,
+      color: colors.primary,
+      fontSize: fontSize.sm,
+      fontWeight: "900",
+    },
 
-  actions: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-  },
+    actions: {
+      flexDirection: "row",
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.lg,
+    },
 
-  actionButton: {
-    flex: 1,
-    minHeight: fixed.minTouch,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.md,
-  },
+    actionButton: {
+      flex: 1,
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: fixed.hairline,
+      borderRadius: radius.md,
+    },
 
-  editButton: {
-    marginRight: spacing.sm,
-    backgroundColor: colors.tagBg,
-  },
+    editButton: {
+      marginRight: spacing.sm,
+      backgroundColor:
+        colors.primarySoft,
+      borderColor: colors.primary,
+    },
 
-  editButtonText: {
-    color: colors.primaryDark,
-    fontSize: fontSize.sm,
-    fontWeight: "800",
-  },
+    editButtonText: {
+      marginLeft: spacing.xs,
+      color: colors.primary,
+      fontSize: fontSize.sm,
+      fontWeight: "800",
+    },
 
-  deleteButton: {
-    backgroundColor: "#fee2e2",
-  },
+    deleteButton: {
+      backgroundColor:
+        isDark
+          ? "#3b1d25"
+          : "#fee2e2",
+      borderColor: colors.danger,
+    },
 
-  deleteButtonText: {
-    color: colors.danger,
-    fontSize: fontSize.sm,
-    fontWeight: "800",
-  },
+    deleteButtonText: {
+      marginLeft: spacing.xs,
+      color: colors.danger,
+      fontSize: fontSize.sm,
+      fontWeight: "800",
+    },
 
-  buttonPressed: {
-    opacity: 0.65,
-    transform: [{ scale: 0.97 }],
-  },
-});
+    buttonPressed: {
+      opacity: 0.68,
+      transform: [
+        {
+          scale: 0.97,
+        },
+      ],
+    },
+  });
+}
+
+export default memo(RecipeCard);

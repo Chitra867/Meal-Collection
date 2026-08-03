@@ -1,8 +1,14 @@
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   Alert,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,18 +16,41 @@ import {
   View,
 } from "react-native";
 
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import RecipeCard from "./RecipeCard";
 
 import {
-  colors,
   fixed,
   fontSize,
   lineHeight,
   radius,
   spacing,
 } from "../constants/theme";
+
+import {
+  useTheme,
+} from "../contexts/ThemeContext";
+
+const TIME_FILTERS = [
+  {
+    id: "all",
+    label: "Any time",
+  },
+  {
+    id: "quick",
+    label: "Under 30 min",
+  },
+  {
+    id: "medium",
+    label: "30–60 min",
+  },
+  {
+    id: "long",
+    label: "Over 60 min",
+  },
+];
 
 function getColumnCount(width) {
   if (width >= 900) {
@@ -35,11 +64,11 @@ function getColumnCount(width) {
   return 1;
 }
 
-function FilterButton({
+function FilterChip({
   label,
   active,
   onPress,
-  style,
+  styles,
 }) {
   return (
     <Pressable
@@ -49,18 +78,17 @@ function FilterButton({
       }}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.filterButton,
-        style,
-        active && styles.activeFilterButton,
+        styles.filterChip,
+        active && styles.activeFilterChip,
         pressed && styles.pressed,
       ]}
     >
       <Text
         numberOfLines={1}
         style={[
-          styles.filterButtonText,
+          styles.filterChipText,
           active &&
-            styles.activeFilterButtonText,
+            styles.activeFilterChipText,
         ]}
       >
         {label}
@@ -69,14 +97,25 @@ function FilterButton({
   );
 }
 
+function FilterLabel({
+  children,
+  styles,
+}) {
+  return (
+    <Text style={styles.filterLabel}>
+      {children}
+    </Text>
+  );
+}
+
 export default function ListScreen({
-  title = "My Collection",
+  title = "Explore Recipes",
   subtitle,
   items = [],
 
   emptyTitle = "No recipes found",
   emptyMessage =
-    "Try another search or change the selected filter.",
+    "Try another search or change the selected filters.",
 
   onAdd = null,
   onEdit = () => {},
@@ -86,8 +125,20 @@ export default function ListScreen({
 
   showSearch = true,
   showFavouriteFilter = true,
+  showCategoryFilter = true,
+  showTimeFilter = true,
 }) {
   const { width } = useWindowDimensions();
+
+  const {
+    colors,
+    isDark,
+  } = useTheme();
+
+  const styles = useMemo(
+    () => createStyles(colors, isDark),
+    [colors, isDark]
+  );
 
   const [searchText, setSearchText] =
     useState("");
@@ -97,9 +148,24 @@ export default function ListScreen({
     setShowFavouritesOnly,
   ] = useState(false);
 
-  const safeItems = Array.isArray(items)
-    ? items
-    : [];
+  const [
+    selectedCategory,
+    setSelectedCategory,
+  ] = useState("All");
+
+  const [selectedTime, setSelectedTime] =
+    useState("all");
+
+  const [
+    filtersVisible,
+    setFiltersVisible,
+  ] = useState(false);
+
+  const safeItems = useMemo(() => {
+    return Array.isArray(items)
+      ? items.filter(Boolean)
+      : [];
+  }, [items]);
 
   const numberOfColumns =
     getColumnCount(width);
@@ -117,40 +183,134 @@ export default function ListScreen({
     availableWidth / numberOfColumns
   );
 
-  const favouriteCount = useMemo(
-    () =>
-      safeItems.filter(
-        (item) =>
-          Boolean(item?.favourite)
-      ).length,
-    [safeItems]
-  );
+  const favouriteCount = useMemo(() => {
+    return safeItems.filter((item) =>
+      Boolean(item.favourite)
+    ).length;
+  }, [safeItems]);
+
+  const categories = useMemo(() => {
+    const categoryMap = new Map();
+
+    safeItems.forEach((item) => {
+      const tags = Array.isArray(item.tags)
+        ? item.tags
+        : [];
+
+      tags.forEach((tag) => {
+        const cleanTag = String(
+          tag || ""
+        ).trim();
+
+        if (!cleanTag) {
+          return;
+        }
+
+        const key =
+          cleanTag.toLowerCase();
+
+        if (!categoryMap.has(key)) {
+          categoryMap.set(
+            key,
+            cleanTag
+          );
+        }
+      });
+    });
+
+    return [
+      "All",
+      ...Array.from(
+        categoryMap.values()
+      ).sort((first, second) =>
+        first.localeCompare(second)
+      ),
+    ];
+  }, [safeItems]);
+
+  useEffect(() => {
+    if (
+      selectedCategory !== "All" &&
+      !categories.includes(
+        selectedCategory
+      )
+    ) {
+      setSelectedCategory("All");
+    }
+  }, [
+    categories,
+    selectedCategory,
+  ]);
 
   const filteredItems = useMemo(() => {
-    const normalizedSearch = searchText
+    const search = searchText
       .trim()
       .toLowerCase();
 
     return safeItems.filter((item) => {
-      if (!item) {
-        return false;
-      }
+      const tags = Array.isArray(
+        item.tags
+      )
+        ? item.tags
+        : [];
 
       const matchesFavourite =
         !showFavouriteFilter ||
         !showFavouritesOnly ||
         Boolean(item.favourite);
 
+      const matchesCategory =
+        !showCategoryFilter ||
+        selectedCategory === "All" ||
+        tags.some((tag) => {
+          return (
+            String(tag)
+              .trim()
+              .toLowerCase() ===
+            selectedCategory.toLowerCase()
+          );
+        });
+
+      const minutes =
+        Number(item.minutes) || 0;
+
+      let matchesTime = true;
+
+      if (
+        showTimeFilter &&
+        selectedTime === "quick"
+      ) {
+        matchesTime =
+          minutes > 0 &&
+          minutes < 30;
+      }
+
+      if (
+        showTimeFilter &&
+        selectedTime === "medium"
+      ) {
+        matchesTime =
+          minutes >= 30 &&
+          minutes <= 60;
+      }
+
+      if (
+        showTimeFilter &&
+        selectedTime === "long"
+      ) {
+        matchesTime =
+          minutes > 60;
+      }
+
       const searchableText = [
         item.title,
         item.subtitle,
         item.notes,
+        ...tags,
 
-        ...(Array.isArray(item.tags)
-          ? item.tags
-          : []),
-
-        ...(Array.isArray(item.ingredients)
+        ...(Array.isArray(
+          item.ingredients
+        )
           ? item.ingredients
           : []),
 
@@ -163,13 +323,13 @@ export default function ListScreen({
         .toLowerCase();
 
       const matchesSearch =
-        !normalizedSearch ||
-        searchableText.includes(
-          normalizedSearch
-        );
+        !search ||
+        searchableText.includes(search);
 
       return (
         matchesFavourite &&
+        matchesCategory &&
+        matchesTime &&
         matchesSearch
       );
     });
@@ -177,26 +337,45 @@ export default function ListScreen({
     safeItems,
     searchText,
     showFavouritesOnly,
+    selectedCategory,
+    selectedTime,
     showFavouriteFilter,
+    showCategoryFilter,
+    showTimeFilter,
   ]);
+
+  const activeFilterCount =
+    Number(showFavouritesOnly) +
+    Number(
+      selectedCategory !== "All"
+    ) +
+    Number(selectedTime !== "all");
+
+  const hasActiveFilters =
+    searchText.trim().length > 0 ||
+    activeFilterCount > 0;
 
   const displaySubtitle =
     subtitle ??
     `${safeItems.length} recipes · ${favouriteCount} favourites`;
 
-  const hasActiveFilters =
-    searchText.trim().length > 0 ||
-    (showFavouriteFilter &&
-      showFavouritesOnly);
+  const clearFilters = () => {
+    setSearchText("");
+    setShowFavouritesOnly(false);
+    setSelectedCategory("All");
+    setSelectedTime("all");
+  };
 
-  const handleDeleteRequest = (recipe) => {
+  const handleDeleteRequest = (
+    recipe
+  ) => {
     if (!recipe?.id) {
       return;
     }
 
     Alert.alert(
       "Delete recipe",
-      `Are you sure you want to delete "${recipe.title}"?`,
+      `Delete "${recipe.title}" from your collection?`,
       [
         {
           text: "Cancel",
@@ -212,25 +391,14 @@ export default function ListScreen({
     );
   };
 
-  const clearFilters = () => {
-    setSearchText("");
-    setShowFavouritesOnly(false);
-  };
-
-  return (
-    <SafeAreaView
-      style={styles.safeArea}
-      edges={[
-        "top",
-        "left",
-        "right",
-      ]}
-    >
+  const headerContent = (
+    <View>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text
             style={styles.screenTitle}
             numberOfLines={1}
+            adjustsFontSizeToFit
           >
             {title}
           </Text>
@@ -253,72 +421,300 @@ export default function ListScreen({
               pressed && styles.pressed,
             ]}
           >
+            <Ionicons
+              name="add"
+              size={21}
+              color="#ffffff"
+            />
+
             <Text
-              style={styles.addButtonText}
+              style={
+                styles.addButtonText
+              }
             >
-              + Add
+              Add
             </Text>
           </Pressable>
         ) : null}
       </View>
 
-      {showSearch ||
-      showFavouriteFilter ? (
-        <View style={styles.controls}>
-          {showSearch ? (
+      <View style={styles.controls}>
+        {showSearch ? (
+          <View
+            style={
+              styles.searchContainer
+            }
+          >
+            <Ionicons
+              name="search-outline"
+              size={20}
+              color={colors.textMuted}
+            />
+
             <TextInput
               value={searchText}
               onChangeText={setSearchText}
-              placeholder="Search recipes, ingredients..."
+              placeholder="Search recipes or ingredients"
               placeholderTextColor={
                 colors.textFaint
               }
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
-              clearButtonMode="while-editing"
               style={styles.searchInput}
             />
-          ) : null}
 
-          {showFavouriteFilter ? (
-            <View
-              style={
-                styles.filterContainer
+            {searchText ? (
+              <Pressable
+                onPress={() =>
+                  setSearchText("")
+                }
+                hitSlop={10}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color={colors.textMuted}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        <View style={styles.filterToolbar}>
+          <Pressable
+            onPress={() =>
+              setFiltersVisible(
+                (current) => !current
+              )
+            }
+            style={({ pressed }) => [
+              styles.filterToggle,
+              filtersVisible &&
+                styles.filterToggleActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={
+                filtersVisible
+                  ? "#ffffff"
+                  : colors.primary
               }
-            >
-              <FilterButton
-                label={`All (${safeItems.length})`}
-                active={
-                  !showFavouritesOnly
-                }
-                onPress={() =>
-                  setShowFavouritesOnly(
-                    false
-                  )
-                }
-              />
+            />
 
-              <FilterButton
-                label={`Favourites (${favouriteCount})`}
-                active={
-                  showFavouritesOnly
+            <Text
+              style={[
+                styles.filterToggleText,
+                filtersVisible &&
+                  styles.filterToggleTextActive,
+              ]}
+            >
+              Filters
+            </Text>
+
+            {activeFilterCount > 0 ? (
+              <View
+                style={
+                  styles.filterCountBadge
                 }
-                onPress={() =>
-                  setShowFavouritesOnly(
-                    true
-                  )
+              >
+                <Text
+                  style={
+                    styles.filterCountText
+                  }
+                >
+                  {activeFilterCount}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+
+          {hasActiveFilters ? (
+            <Pressable
+              onPress={clearFilters}
+              style={({ pressed }) => [
+                styles.resetButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text
+                style={
+                  styles.resetButtonText
                 }
-              />
-            </View>
+              >
+                Reset
+              </Text>
+            </Pressable>
           ) : null}
         </View>
-      ) : null}
 
+        {filtersVisible ? (
+          <View style={styles.filterPanel}>
+            {showFavouriteFilter ? (
+              <View
+                style={
+                  styles.filterSection
+                }
+              >
+                <FilterLabel
+                  styles={styles}
+                >
+                  Collection
+                </FilterLabel>
+
+                <View
+                  style={
+                    styles.collectionRow
+                  }
+                >
+                  <FilterChip
+                    label={`All (${safeItems.length})`}
+                    active={
+                      !showFavouritesOnly
+                    }
+                    onPress={() =>
+                      setShowFavouritesOnly(
+                        false
+                      )
+                    }
+                    styles={styles}
+                  />
+
+                  <FilterChip
+                    label={`Favourites (${favouriteCount})`}
+                    active={
+                      showFavouritesOnly
+                    }
+                    onPress={() =>
+                      setShowFavouritesOnly(
+                        true
+                      )
+                    }
+                    styles={styles}
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {showCategoryFilter &&
+            categories.length > 1 ? (
+              <View
+                style={
+                  styles.filterSection
+                }
+              >
+                <FilterLabel
+                  styles={styles}
+                >
+                  Category
+                </FilterLabel>
+
+                <ScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  contentContainerStyle={
+                    styles.horizontalFilters
+                  }
+                >
+                  {categories.map(
+                    (category) => (
+                      <FilterChip
+                        key={category}
+                        label={category}
+                        active={
+                          selectedCategory ===
+                          category
+                        }
+                        onPress={() =>
+                          setSelectedCategory(
+                            category
+                          )
+                        }
+                        styles={styles}
+                      />
+                    )
+                  )}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {showTimeFilter ? (
+              <View
+                style={
+                  styles.filterSection
+                }
+              >
+                <FilterLabel
+                  styles={styles}
+                >
+                  Cooking time
+                </FilterLabel>
+
+                <ScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  contentContainerStyle={
+                    styles.horizontalFilters
+                  }
+                >
+                  {TIME_FILTERS.map(
+                    (filter) => (
+                      <FilterChip
+                        key={filter.id}
+                        label={filter.label}
+                        active={
+                          selectedTime ===
+                          filter.id
+                        }
+                        onPress={() =>
+                          setSelectedTime(
+                            filter.id
+                          )
+                        }
+                        styles={styles}
+                      />
+                    )
+                  )}
+                </ScrollView>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {hasActiveFilters ? (
+          <Text style={styles.resultText}>
+            {filteredItems.length}{" "}
+            {filteredItems.length === 1
+              ? "recipe"
+              : "recipes"}{" "}
+            found
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={["top", "left", "right"]}
+    >
       <FlatList
         key={`columns-${numberOfColumns}`}
         data={filteredItems}
         numColumns={numberOfColumns}
+        ListHeaderComponent={
+          headerContent
+        }
         keyExtractor={(item, index) =>
           item?.id
             ? String(item.id)
@@ -329,33 +725,40 @@ export default function ListScreen({
         }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        contentContainerStyle={[
-          styles.listContent,
-          filteredItems.length === 0 &&
-            styles.emptyListContent,
-        ]}
+        initialNumToRender={5}
+        windowSize={7}
+        contentContainerStyle={
+          styles.listContent
+        }
         columnWrapperStyle={
           numberOfColumns > 1
-            ? {
-                gap: columnGap,
-              }
+            ? styles.columnWrapper
             : undefined
         }
         renderItem={({ item }) => (
-          <RecipeCard
-            item={item}
-            width={cardWidth}
-            onOpenDetails={
-              onOpenDetails
-            }
-            onEdit={onEdit}
-            onDelete={
-              handleDeleteRequest
-            }
-            onToggleFavourite={
-              onToggleFavourite
-            }
-          />
+          <View
+            style={[
+              styles.cardWrapper,
+              {
+                width: cardWidth,
+              },
+            ]}
+          >
+            <RecipeCard
+              item={item}
+              width="100%"
+              onOpenDetails={
+                onOpenDetails
+              }
+              onEdit={onEdit}
+              onDelete={
+                handleDeleteRequest
+              }
+              onToggleFavourite={
+                onToggleFavourite
+              }
+            />
+          </View>
         )}
         ListEmptyComponent={
           <View
@@ -363,11 +766,17 @@ export default function ListScreen({
               styles.emptyContainer
             }
           >
-            <Text
-              style={styles.emptyIcon}
+            <View
+              style={
+                styles.emptyIconContainer
+              }
             >
-              🔎
-            </Text>
+              <Ionicons
+                name="restaurant-outline"
+                size={34}
+                color={colors.primary}
+              />
+            </View>
 
             <Text
               style={styles.emptyTitle}
@@ -383,39 +792,19 @@ export default function ListScreen({
 
             {hasActiveFilters ? (
               <Pressable
-                accessibilityRole="button"
                 onPress={clearFilters}
                 style={({ pressed }) => [
-                  styles.clearButton,
+                  styles.emptyButton,
                   pressed &&
                     styles.pressed,
                 ]}
               >
                 <Text
                   style={
-                    styles.clearButtonText
+                    styles.emptyButtonText
                   }
                 >
                   Clear filters
-                </Text>
-              </Pressable>
-            ) : typeof onAdd ===
-              "function" ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={onAdd}
-                style={({ pressed }) => [
-                  styles.clearButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-              >
-                <Text
-                  style={
-                    styles.clearButtonText
-                  }
-                >
-                  Add your first recipe
                 </Text>
               </Pressable>
             ) : null}
@@ -426,162 +815,285 @@ export default function ListScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+function createStyles(
+  colors,
+  isDark
+) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-  },
+    listContent: {
+      flexGrow: 1,
+      paddingBottom: 110,
+    },
 
-  headerText: {
-    flex: 1,
-    marginRight: spacing.md,
-  },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.md,
+    },
 
-  screenTitle: {
-    color: colors.text,
-    fontSize: fontSize.xxl,
-    fontWeight: "800",
-    lineHeight: lineHeight(
-      fontSize.xxl
-    ),
-  },
+    headerText: {
+      flex: 1,
+      marginRight: spacing.md,
+    },
 
-  screenSubtitle: {
-    marginTop: spacing.xs,
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-  },
+    screenTitle: {
+      color: colors.text,
+      fontSize: fontSize.xl,
+      fontWeight: "900",
+      lineHeight: lineHeight(
+        fontSize.xl
+      ),
+    },
 
-  addButton: {
-    minHeight: fixed.minTouch,
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-  },
+    screenSubtitle: {
+      marginTop: spacing.xs,
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+    },
 
-  addButtonText: {
-    color: colors.surface,
-    fontSize: fontSize.sm,
-    fontWeight: "800",
-  },
+    addButton: {
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.primary,
+      borderRadius: radius.pill,
+    },
 
-  controls: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
+    addButtonText: {
+      marginLeft: 3,
+      color: "#ffffff",
+      fontSize: fontSize.sm,
+      fontWeight: "800",
+    },
 
-  searchInput: {
-    minHeight: fixed.minTouch,
-    paddingHorizontal: spacing.md,
-    color: colors.text,
-    fontSize: fontSize.md,
-    backgroundColor: colors.surface,
-    borderWidth: fixed.hairline,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-  },
+    controls: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.md,
+    },
 
-  filterContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
+    searchContainer: {
+      minHeight: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      borderWidth: fixed.hairline,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+    },
 
-  filterButton: {
-    minHeight: fixed.minTouch,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
-    borderWidth: fixed.hairline,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-  },
+    searchInput: {
+      flex: 1,
+      marginHorizontal: spacing.sm,
+      color: colors.text,
+      fontSize: fontSize.sm,
+    },
 
-  activeFilterButton: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
+    filterToolbar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: spacing.sm,
+    },
 
-  filterButtonText: {
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-    fontWeight: "700",
-  },
+    filterToggle: {
+      minHeight: 40,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: spacing.md,
+      backgroundColor:
+        colors.primarySoft,
+      borderWidth: fixed.hairline,
+      borderColor: colors.primary,
+      borderRadius: radius.pill,
+    },
 
-  activeFilterButtonText: {
-    color: colors.surface,
-  },
+    filterToggleActive: {
+      backgroundColor: colors.primary,
+    },
 
-  listContent: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
+    filterToggleText: {
+      marginLeft: spacing.xs,
+      color: colors.primary,
+      fontSize: fontSize.sm,
+      fontWeight: "800",
+    },
 
-  emptyListContent: {
-    justifyContent: "center",
-  },
+    filterToggleTextActive: {
+      color: "#ffffff",
+    },
 
-  emptyContainer: {
-    alignItems: "center",
-    padding: spacing.xxl,
-  },
+    filterCountBadge: {
+      minWidth: 20,
+      height: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: spacing.sm,
+      paddingHorizontal: 5,
+      backgroundColor: "#ffffff",
+      borderRadius: 10,
+    },
 
-  emptyIcon: {
-    fontSize: fontSize.xxl,
-  },
+    filterCountText: {
+      color: colors.primary,
+      fontSize: 11,
+      fontWeight: "900",
+    },
 
-  emptyTitle: {
-    marginTop: spacing.md,
-    color: colors.text,
-    fontSize: fontSize.lg,
-    fontWeight: "800",
-    textAlign: "center",
-  },
+    resetButton: {
+      minHeight: 40,
+      justifyContent: "center",
+      paddingHorizontal: spacing.md,
+    },
 
-  emptyMessage: {
-    marginTop: spacing.sm,
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight(
-      fontSize.sm
-    ),
-    textAlign: "center",
-  },
+    resetButtonText: {
+      color: colors.primary,
+      fontSize: fontSize.sm,
+      fontWeight: "800",
+    },
 
-  clearButton: {
-    minHeight: fixed.minTouch,
-    justifyContent: "center",
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-  },
+    filterPanel: {
+      marginTop: spacing.sm,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      borderWidth: fixed.hairline,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+    },
 
-  clearButtonText: {
-    color: colors.surface,
-    fontSize: fontSize.sm,
-    fontWeight: "800",
-  },
+    filterSection: {
+      marginBottom: spacing.md,
+    },
 
-  pressed: {
-    opacity: 0.7,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+    filterLabel: {
+      marginBottom: spacing.sm,
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: "900",
+      letterSpacing: 0.7,
+      textTransform: "uppercase",
+    },
+
+    collectionRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
+
+    horizontalFilters: {
+      gap: spacing.sm,
+      paddingRight: spacing.md,
+    },
+
+    filterChip: {
+      minHeight: 38,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: spacing.md,
+      backgroundColor:
+        colors.surfaceSecondary,
+      borderWidth: fixed.hairline,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+    },
+
+    activeFilterChip: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+
+    filterChipText: {
+      color: colors.textMuted,
+      fontSize: fontSize.xs,
+      fontWeight: "700",
+    },
+
+    activeFilterChipText: {
+      color: "#ffffff",
+    },
+
+    resultText: {
+      marginTop: spacing.sm,
+      color: colors.textMuted,
+      fontSize: fontSize.xs,
+      fontWeight: "700",
+    },
+
+    cardWrapper: {
+      alignSelf: "center",
+    },
+
+    columnWrapper: {
+      gap: spacing.md,
+      paddingHorizontal: spacing.lg,
+    },
+
+    emptyContainer: {
+      alignItems: "center",
+      paddingHorizontal: spacing.xxl,
+      paddingTop: spacing.xxl,
+    },
+
+    emptyIconContainer: {
+      width: 68,
+      height: 68,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        colors.primarySoft,
+      borderRadius: 34,
+    },
+
+    emptyTitle: {
+      marginTop: spacing.md,
+      color: colors.text,
+      fontSize: fontSize.lg,
+      fontWeight: "800",
+      textAlign: "center",
+    },
+
+    emptyMessage: {
+      marginTop: spacing.sm,
+      color: colors.textMuted,
+      fontSize: fontSize.sm,
+      lineHeight: lineHeight(
+        fontSize.sm
+      ),
+      textAlign: "center",
+    },
+
+    emptyButton: {
+      minHeight: 44,
+      justifyContent: "center",
+      marginTop: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      backgroundColor: colors.primary,
+      borderRadius: radius.pill,
+    },
+
+    emptyButtonText: {
+      color: "#ffffff",
+      fontSize: fontSize.sm,
+      fontWeight: "800",
+    },
+
+    pressed: {
+      opacity: 0.72,
+      transform: [
+        {
+          scale: 0.98,
+        },
+      ],
+    },
+  });
+}

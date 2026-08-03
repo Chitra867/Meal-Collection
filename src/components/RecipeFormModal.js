@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Image,
@@ -14,7 +14,6 @@ import {
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
-
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -36,7 +35,9 @@ function FormField({
 }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label}>
+        {label}
+      </Text>
 
       <TextInput
         value={value}
@@ -46,30 +47,80 @@ function FormField({
         multiline={multiline}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
-        textAlignVertical={multiline ? "top" : "center"}
+        autoCorrect={false}
+        textAlignVertical={
+          multiline ? "top" : "center"
+        }
         style={[
           styles.input,
-          multiline && styles.multilineInput,
+          multiline &&
+            styles.multilineInput,
         ]}
       />
     </View>
   );
 }
 
+function isRemoteImageUri(value) {
+  return /^https?:\/\/\S+$/i.test(
+    String(value || "").trim()
+  );
+}
+
+function isLocalImageUri(value) {
+  const uri = String(value || "").trim();
+
+  return (
+    uri.startsWith("file:") ||
+    uri.startsWith("content:") ||
+    uri.startsWith("data:") ||
+    uri.startsWith("ph:")
+  );
+}
+
+function createLines(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 export default function RecipeFormModal({
-  visible,
-  recipe,
-  onClose,
-  onSave,
+  visible = false,
+  recipe = null,
+  onClose = () => {},
+  onSave = () => {},
 }) {
   const [title, setTitle] = useState("");
-  const [subtitle, setSubtitle] = useState("");
+  const [subtitle, setSubtitle] =
+    useState("");
+
   const [image, setImage] = useState("");
-  const [minutes, setMinutes] = useState("");
-  const [tagsText, setTagsText] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [imageFailed, setImageFailed] = useState(false);
+  const [imageUrl, setImageUrl] =
+    useState("");
+
+  const [minutes, setMinutes] =
+    useState("");
+
+  const [tagsText, setTagsText] =
+    useState("");
+
+  const [
+    ingredientsText,
+    setIngredientsText,
+  ] = useState("");
+
+  const [stepsText, setStepsText] =
+    useState("");
+
+  const [notes, setNotes] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const [imageFailed, setImageFailed] =
+    useState(false);
 
   const isEditMode = Boolean(recipe);
 
@@ -78,17 +129,45 @@ export default function RecipeFormModal({
       return;
     }
 
+    const recipeImage = String(
+      recipe?.image || ""
+    );
+
     setTitle(recipe?.title || "");
     setSubtitle(recipe?.subtitle || "");
-    setImage(recipe?.image || "");
-    setMinutes(
-      recipe?.minutes ? String(recipe.minutes) : ""
+
+    setImage(recipeImage);
+
+    setImageUrl(
+      isRemoteImageUri(recipeImage)
+        ? recipeImage
+        : ""
     );
+
+    setMinutes(
+      recipe?.minutes
+        ? String(recipe.minutes)
+        : ""
+    );
+
     setTagsText(
       Array.isArray(recipe?.tags)
         ? recipe.tags.join(", ")
         : ""
     );
+
+    setIngredientsText(
+      Array.isArray(recipe?.ingredients)
+        ? recipe.ingredients.join("\n")
+        : ""
+    );
+
+    setStepsText(
+      Array.isArray(recipe?.steps)
+        ? recipe.steps.join("\n")
+        : ""
+    );
+
     setNotes(recipe?.notes || "");
     setError("");
     setImageFailed(false);
@@ -96,76 +175,126 @@ export default function RecipeFormModal({
 
   useEffect(() => {
     setImageFailed(false);
-  }, [image]);
+  }, [image, imageUrl]);
 
-  const pickImageFromGallery = async () => {
-    try {
-      setError("");
+  const cleanImageUrl = imageUrl.trim();
 
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const previewImage = useMemo(() => {
+    if (cleanImageUrl) {
+      return isRemoteImageUri(cleanImageUrl)
+        ? cleanImageUrl
+        : "";
+    }
 
-      if (!permission.granted) {
-        setError(
-          "Gallery permission is required to select a recipe image."
-        );
-        return;
-      }
+    return image;
+  }, [cleanImageUrl, image]);
 
-      const result =
-        await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"],
-          allowsEditing: true,
-          aspect: [16, 9],
-          quality: 0.8,
-        });
+  const showImage =
+    Boolean(previewImage) && !imageFailed;
 
-      if (result.canceled) {
-        return;
-      }
+  const handleImageUrlChange = (value) => {
+    setImageUrl(value);
+    setImageFailed(false);
 
-      const selectedImage = result.assets?.[0];
-
-      if (!selectedImage?.uri) {
-        setError("The selected image could not be loaded.");
-        return;
-      }
-
-      setImage(selectedImage.uri);
-      setImageFailed(false);
-    } catch (pickerError) {
-      console.error(
-        "Failed to select image:",
-        pickerError
-      );
-
-      setError(
-        "Something went wrong while selecting the image."
-      );
+    if (
+      !value.trim() &&
+      isRemoteImageUri(image)
+    ) {
+      setImage("");
     }
   };
 
+  const pickImageFromGallery =
+    async () => {
+      try {
+        setError("");
+
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (!permission.granted) {
+          setError(
+            "Gallery permission is required to select a recipe image."
+          );
+          return;
+        }
+
+        const result =
+          await ImagePicker.launchImageLibraryAsync(
+            {
+              mediaTypes: ["images"],
+              allowsEditing: true,
+              aspect: [16, 9],
+              quality: 0.8,
+            }
+          );
+
+        if (result.canceled) {
+          return;
+        }
+
+        const selectedImage =
+          result.assets?.[0];
+
+        if (!selectedImage?.uri) {
+          setError(
+            "The selected image could not be loaded."
+          );
+          return;
+        }
+
+        setImage(selectedImage.uri);
+        setImageUrl("");
+        setImageFailed(false);
+      } catch (pickerError) {
+        console.error(
+          "Failed to select recipe image:",
+          pickerError
+        );
+
+        setError(
+          "Something went wrong while selecting the image."
+        );
+      }
+    };
+
   const removeImage = () => {
     setImage("");
+    setImageUrl("");
     setImageFailed(false);
   };
 
+  const handleClose = () => {
+    setError("");
+    onClose();
+  };
+
   const handleSubmit = () => {
+    setError("");
+
     const cleanTitle = title.trim();
-    const cleanSubtitle = subtitle.trim();
-    const cleanImage = image.trim();
+    const cleanSubtitle =
+      subtitle.trim();
+
+    const cleanImage =
+      cleanImageUrl || image.trim();
+
     const cleanNotes = notes.trim();
 
     const parsedMinutes =
       Number.parseInt(minutes, 10);
 
     if (!cleanTitle) {
-      setError("Recipe title is required.");
+      setError(
+        "Recipe title is required."
+      );
       return;
     }
 
     if (!cleanSubtitle) {
-      setError("Recipe subtitle is required.");
+      setError(
+        "Recipe subtitle is required."
+      );
       return;
     }
 
@@ -179,18 +308,10 @@ export default function RecipeFormModal({
       return;
     }
 
-    const isRemoteImage =
-      /^https?:\/\/\S+$/i.test(cleanImage);
-
-    const isLocalImage =
-      cleanImage.startsWith("file:") ||
-      cleanImage.startsWith("content:") ||
-      cleanImage.startsWith("data:");
-
     if (
       cleanImage &&
-      !isRemoteImage &&
-      !isLocalImage
+      !isRemoteImageUri(cleanImage) &&
+      !isLocalImageUri(cleanImage)
     ) {
       setError(
         "Select an image or enter a valid image URL."
@@ -207,22 +328,46 @@ export default function RecipeFormModal({
       ),
     ];
 
+    const ingredients = createLines(
+      ingredientsText
+    );
+
+    const steps = createLines(
+      stepsText
+    );
+
+    if (ingredients.length === 0) {
+      setError(
+        "Add at least one ingredient."
+      );
+      return;
+    }
+
+    if (steps.length === 0) {
+      setError(
+        "Add at least one preparation step."
+      );
+      return;
+    }
+
     onSave({
       title: cleanTitle,
       subtitle: cleanSubtitle,
       image: cleanImage,
       minutes: parsedMinutes,
       tags,
+      ingredients,
+      steps,
       notes: cleanNotes,
     });
   };
 
   return (
     <Modal
-      visible={visible}
+      visible={Boolean(visible)}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <SafeAreaView
         style={styles.safeArea}
@@ -238,7 +383,9 @@ export default function RecipeFormModal({
         >
           <View style={styles.header}>
             <Pressable
-              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close recipe form"
+              onPress={handleClose}
               style={({ pressed }) => [
                 styles.headerButton,
                 pressed && styles.pressed,
@@ -249,13 +396,22 @@ export default function RecipeFormModal({
               </Text>
             </Pressable>
 
-            <Text style={styles.headerTitle}>
+            <Text
+              style={styles.headerTitle}
+              numberOfLines={1}
+            >
               {isEditMode
                 ? "Edit Recipe"
                 : "Add Recipe"}
             </Text>
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                isEditMode
+                  ? "Save recipe changes"
+                  : "Save new recipe"
+              }
               onPress={handleSubmit}
               style={({ pressed }) => [
                 styles.headerButton,
@@ -288,9 +444,11 @@ export default function RecipeFormModal({
                 Recipe image
               </Text>
 
-              {image && !imageFailed ? (
+              {showImage ? (
                 <Image
-                  source={{ uri: image }}
+                  source={{
+                    uri: previewImage,
+                  }}
                   style={styles.imagePreview}
                   resizeMode="cover"
                   onError={() =>
@@ -299,45 +457,68 @@ export default function RecipeFormModal({
                 />
               ) : (
                 <View
-                  style={styles.imagePlaceholder}
+                  style={
+                    styles.imagePlaceholder
+                  }
                 >
                   <Text
-                    style={styles.placeholderIcon}
+                    style={
+                      styles.placeholderIcon
+                    }
                   >
                     🍽️
                   </Text>
 
                   <Text
-                    style={styles.placeholderText}
+                    style={
+                      styles.placeholderText
+                    }
                   >
                     {imageFailed
                       ? "Image could not be displayed"
-                      : "No image selected"}
+                      : cleanImageUrl &&
+                          !isRemoteImageUri(
+                            cleanImageUrl
+                          )
+                        ? "Enter a complete image URL"
+                        : "No image selected"}
                   </Text>
                 </View>
               )}
 
-              <View style={styles.imageActions}>
+              <View
+                style={styles.imageActions}
+              >
                 <Pressable
-                  onPress={pickImageFromGallery}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose recipe image from gallery"
+                  onPress={
+                    pickImageFromGallery
+                  }
                   style={({ pressed }) => [
                     styles.galleryButton,
-                    pressed && styles.pressed,
+                    pressed &&
+                      styles.pressed,
                   ]}
                 >
                   <Text
-                    style={styles.galleryButtonText}
+                    style={
+                      styles.galleryButtonText
+                    }
                   >
                     Choose from Gallery
                   </Text>
                 </Pressable>
 
-                {image ? (
+                {image || imageUrl ? (
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove recipe image"
                     onPress={removeImage}
                     style={({ pressed }) => [
                       styles.removeImageButton,
-                      pressed && styles.pressed,
+                      pressed &&
+                        styles.pressed,
                     ]}
                   >
                     <Text
@@ -354,8 +535,10 @@ export default function RecipeFormModal({
 
             <FormField
               label="Image URL (optional)"
-              value={image.startsWith("http") ? image : ""}
-              onChangeText={setImage}
+              value={imageUrl}
+              onChangeText={
+                handleImageUrlChange
+              }
               placeholder="https://example.com/recipe.jpg"
               keyboardType="url"
               autoCapitalize="none"
@@ -380,7 +563,10 @@ export default function RecipeFormModal({
               value={minutes}
               onChangeText={(value) =>
                 setMinutes(
-                  value.replace(/[^0-9]/g, "")
+                  value.replace(
+                    /[^0-9]/g,
+                    ""
+                  )
                 )
               }
               placeholder="Example: 45"
@@ -393,24 +579,57 @@ export default function RecipeFormModal({
               value={tagsText}
               onChangeText={setTagsText}
               placeholder="Indian, Chicken, Spicy"
+              autoCapitalize="words"
             />
 
             <FormField
-              label="Notes"
+              label="Ingredients"
+              value={ingredientsText}
+              onChangeText={
+                setIngredientsText
+              }
+              placeholder={
+                "Enter one ingredient per line\n500g chicken\n2 onions\n1 tablespoon oil"
+              }
+              multiline
+            />
+
+            <FormField
+              label="Preparation steps"
+              value={stepsText}
+              onChangeText={setStepsText}
+              placeholder={
+                "Enter one step per line\nHeat the oil\nCook the onions\nAdd the chicken"
+              }
+              multiline
+            />
+
+            <FormField
+              label="Notes (optional)"
               value={notes}
               onChangeText={setNotes}
-              placeholder="Write preparation notes..."
+              placeholder="Add serving suggestions or other notes..."
               multiline
             />
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                isEditMode
+                  ? "Update recipe"
+                  : "Add recipe"
+              }
               onPress={handleSubmit}
               style={({ pressed }) => [
                 styles.submitButton,
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.submitButtonText}>
+              <Text
+                style={
+                  styles.submitButtonText
+                }
+              >
                 {isEditMode
                   ? "Update Recipe"
                   : "Add Recipe"}
@@ -445,13 +664,15 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: {
+    flex: 1,
     color: colors.text,
     fontSize: fontSize.lg,
     fontWeight: "800",
+    textAlign: "center",
   },
 
   headerButton: {
-    minWidth: 64,
+    minWidth: 72,
     minHeight: fixed.minTouch,
     alignItems: "center",
     justifyContent: "center",
@@ -490,6 +711,7 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     alignItems: "center",
     justifyContent: "center",
+    padding: spacing.lg,
     backgroundColor: colors.border,
     borderRadius: radius.lg,
   },
@@ -502,6 +724,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     color: colors.textMuted,
     fontSize: fontSize.sm,
+    textAlign: "center",
   },
 
   imageActions: {
@@ -523,6 +746,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: fontSize.sm,
     fontWeight: "800",
+    textAlign: "center",
   },
 
   removeImageButton: {
@@ -565,7 +789,7 @@ const styles = StyleSheet.create({
   },
 
   multilineInput: {
-    minHeight: 120,
+    minHeight: 140,
   },
 
   errorBox: {
@@ -597,6 +821,10 @@ const styles = StyleSheet.create({
 
   pressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.98 }],
+    transform: [
+      {
+        scale: 0.98,
+      },
+    ],
   },
 });
